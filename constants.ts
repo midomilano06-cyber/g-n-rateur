@@ -13,6 +13,7 @@ export const defaultLayoutSettings: LayoutSettings = {
   letterSpacing: 0,
   fontWeight: 700,
   fontFamily: 'courier',
+  isOfflineQueueEnabled: true, // Default to true
 };
 
 export const fontOptions: { value: string, label: string }[] = [
@@ -87,274 +88,287 @@ export const finDeVieOptions: Option[] = [
     { value: 'Autre (à préciser)', label: 'Autre (à préciser)' }, // Added "Other" option
 ];
 
+// New constant for non-pharmacological pain interventions
+export const painNonPharmaInterventions: Option[] = [
+    { value: 'Positionnement confortable', label: 'Positionnement confortable' },
+    { value: 'Application de chaud/froid', label: 'Application de chaud/froid' },
+    { value: 'Massage léger', label: 'Massage léger' },
+    { value: 'Techniques de relaxation (respiration, imagerie)', label: 'Techniques de relaxation (respiration, imagerie)' },
+    { value: 'Distraction (musique, télévision, conversation)', label: 'Distraction (musique, télévision, conversation)' },
+    { value: 'Présence rassurante', label: 'Présence rassurante' },
+    { value: 'Réduction des stimuli environnementaux (lumière, bruit)', label: 'Réduction des stimuli environnementaux (lumière, bruit)' },
+];
+
+export const painFieldsData: PainField[] = [
+    {
+      id: 'p',
+      label: 'P – Provoquée par / Palliative (ce qui améliore ou aggrave)',
+      type: 'checkbox',
+      options: [
+        { value: 'Mouvement', label: 'Mouvement' },
+        { value: 'Repos', label: 'Repos' },
+        { value: 'Stress', label: 'Stress' },
+        { value: 'Alimentation', label: 'Alimentation' },
+        { value: 'Boissons', label: 'Boissons' },
+        { value: 'Médicaments', label: 'Médicaments' },
+        { value: 'Chaleur', label: 'Chaleur' },
+        { value: 'Froid', label: 'Froid' },
+        { value: 'Aucun facteur identifié', label: 'Aucun facteur identifié' },
+      ],
+    },
+    {
+      id: 'q',
+      label: 'Q – Qualité (comment la douleur est ressentie)',
+      type: 'checkbox',
+      options: [
+        { value: 'Constrictive', label: 'Constrictive' },
+        { value: 'Piquante', label: 'Piquante' },
+        { value: 'Brûlante', label: 'Brûlante' },
+        { value: 'Écrasante', label: 'Écrasante' },
+        { value: 'Lancinante', label: 'Lancinante' },
+        { value: 'Coupante', label: 'Coupante' },
+        { value: 'Tiraillement', label: 'Tiraillement' },
+        { value: 'Battante', label: 'Battante' },
+        { value: 'Sourde', label: 'Sourde' },
+        { value: 'Électrique', label: 'Électrique' },
+      ],
+    },
+    {
+      id: 'r',
+      label: 'R – Région / Irradiation (où se situe la douleur et si elle s\'étend)',
+      type: 'checkbox',
+      options: [
+        { value: 'Localisée', label: 'Localisée' },
+        { value: 'Irradiante', label: 'Irradiante' },
+        { value: 'Diffuse', label: 'Diffuse' },
+      ],
+    },
+    {
+      id: 's',
+      label: 'S – Sévérité (intensité de la douleur sur une échelle de 0 à 10)',
+      type: 'radio',
+      options: [
+        { value: '0 - Aucune douleur', label: '0 - Aucune douleur' },
+        { value: '1-3 - Douleur légère', label: '1-3 - Douleur légère' },
+        { value: '4-6 - Douleur modérée', label: '4-6 - Douleur modérée' },
+        { value: '7-10 - Douleur sévère', label: '7-10 - Douleur sévère' },
+      ],
+    },
+    {
+      id: 't',
+      label: 'T – Temps (depuis quand, durée, fréquence)',
+      type: 'checkbox',
+      options: [
+        { value: 'Constante', label: 'Constante' },
+        { value: 'Intermittente', label: 'Intermittente' },
+        { value: 'Aiguë (soudaine)', label: 'Aiguë (soudaine)' },
+        { value: 'Chronique (longue durée)', label: 'Chronique (longue durée)' },
+      ],
+    },
+    {
+        id: 'u',
+        label: 'U - Impact / Compréhension (ce que le patient en comprend, impact sur les activités)',
+        type: 'checkbox',
+        options: [
+            { value: 'Impact sur le sommeil', label: 'Impact sur le sommeil' },
+            { value: 'Impact sur l\'appétit', label: 'Impact sur l\'appétit' },
+            { value: 'Impact sur l\'humeur', label: 'Impact sur l\'humeur' },
+            { value: 'Impact sur les activités quotidiennes', label: 'Impact sur les activités quotidiennes' },
+            { value: 'Patient exprime de l\'anxiété/détresse', label: 'Patient exprime de l\'anxiété/détresse' },
+            { value: 'Patient semble résigné/découragé', label: 'Patient semble résigné/découragé' },
+            { value: 'Comprend la nature de sa douleur', label: 'Comprend la nature de sa douleur' },
+            { value: 'Demande des informations supplémentaires', label: 'Demande des informations supplémentaires' },
+            { value: 'Ne peut pas décrire l\'impact', label: 'Ne peut pas décrire l\'impact' },
+        ],
+    },
+];
+
 export const sectionsData: SectionData[] = [
   {
     id: 'position',
     title: 'Position du patient',
     type: 'checkbox',
     options: [
-        { value: 'Décubitus dorsal', label: 'Décubitus dorsal' },
-        { value: 'Décubitus latéral', label: 'Décubitus latéral' },
-        { value: 'Décubitus ventral', label: 'Décubitus ventral' },
-        { value: 'Position semi-assise', label: 'Position semi-assise' },
-        { value: 'Assis(e) au fauteuil', label: 'Assis(e) au fauteuil' },
-        { value: 'Debout', label: 'Debout' },
+      { value: 'Décubitus dorsal', label: 'Décubitus dorsal' },
+      { value: 'Décubitus latéral droit', label: 'Décubitus latéral droit' },
+      { value: 'Décubitus latéral gauche', label: 'Décubitus latéral gauche' },
+      { value: 'Semi-Fowler', label: 'Semi-Fowler' },
+      { value: 'Fowler', label: 'Fowler' },
+      { value: 'Assis au fauteuil', label: 'Assis au fauteuil' },
+      { value: 'Ambulatoire', label: 'Ambulatoire' },
     ],
   },
   {
     id: 'etatEveil',
-    title: 'État d’éveil',
+    title: 'État d\'éveil',
     type: 'radio',
     options: [
-      { value: 'Alerte', label: 'Alerte' },
-      { value: 'Somnolent', label: 'Somnolent' },
+      { value: 'Éveillé et alerte', label: 'Éveillé et alerte' },
       { value: 'Léthargique', label: 'Léthargique' },
+      { value: 'Somnolent', label: 'Somnolent' },
+      { value: 'Obnubilé', label: 'Obnubilé' },
       { value: 'Stuporeux', label: 'Stuporeux' },
       { value: 'Comateux', label: 'Comateux' },
-      { value: 'Non évaluable', label: 'Non évaluable' },
+    ],
+  },
+  {
+    id: 'signesVitaux',
+    title: 'Signes vitaux',
+    type: 'radio',
+    options: [
+        { value: 'Stable', label: 'Stable' },
+        { value: 'Instable', label: 'Instable' },
+        { value: 'Dans les limites normales', label: 'Dans les limites normales' },
+        { value: 'Voir feuille spéciale', label: 'Voir feuille spéciale' },
     ],
   },
   {
     id: 'signesNeuro',
-    title: 'Signes neurologiques (SN)',
+    title: 'Signes neurologiques',
     type: 'radio',
     options: [
-      { value: 'Normal', label: 'Normal' },
-      { value: 'Anormal', label: 'Anormal' },
+        { value: 'Pupilles isocores et réactives', label: 'Pupilles isocores et réactives' },
+        { value: 'Diminution état de conscience', label: 'Diminution état de conscience' },
+        { value: 'Mouvements anormaux', label: 'Mouvements anormaux' },
+        { value: 'Faiblesse/paralysie', label: 'Faiblesse/paralysie' },
+        { value: 'Céphalées', label: 'Céphalées' },
+        { value: 'Vertiges', label: 'Vertiges' },
+        { value: 'Voir feuille spéciale', label: 'Voir feuille spéciale' },
     ],
   },
   {
     id: 'respiratoire',
-    title: 'Système respiratoire',
+    title: 'Respiratoire',
     type: 'checkbox',
     options: [
-      { value: 'Respiration régulière', label: 'Respiration régulière' },
-      { value: 'Aucun signe de détresse', label: 'Aucun signe de détresse' },
-      { value: 'Dyspnée au repos', label: 'Dyspnée au repos' },
-      { value: 'Dyspnée à l’effort', label: 'Dyspnée à l’effort' },
-      { value: 'Toux sèche', label: 'Toux sèche' },
-      { value: 'Toux productive', label: 'Toux productive' },
+      { value: 'Respiration régulière et facile', label: 'Respiration régulière et facile' },
+      { value: 'Toux présente', label: 'Toux présente' },
       { value: 'Sécrétions abondantes', label: 'Sécrétions abondantes' },
+      { value: 'Dyspnée', label: 'Dyspnée' },
       { value: 'Utilisation d’O₂', label: 'Utilisation d’O₂' },
+      { value: 'Sons pulmonaires anormaux (crépitants, sibilants)', label: 'Sons pulmonaires anormaux' },
     ],
     hasIntervention: true,
     interventions: [
-        { value: 'Surveillance de la saturation en O₂', label: 'Surveillance de la saturation en O₂' },
-        { value: 'Auscultation pulmonaire', label: 'Auscultation pulmonaire' },
-        { value: 'Aspiration des sécrétions si besoin', label: 'Aspiration des sécrétions' },
-        { value: 'Position semi-assise', label: 'Position semi-assise' },
-        { value: 'Administration d\'O₂ selon prescription', label: 'Administration d\'O₂' },
+      { value: 'Aspiration des sécrétions', label: 'Aspiration des sécrétions' },
+      { value: 'Exercices de respiration profonde', label: 'Exercices de respiration profonde' },
+      { value: 'Positionnement pour optimiser la respiration', label: 'Positionnement pour optimiser la respiration' },
+      { value: 'Enseignement sur spirométrie incitative', label: 'Enseignement sur spirométrie incitative' },
     ]
   },
   {
-    id: 'signesVitaux',
-    title: 'Signes vitaux (SV)',
-    type: 'radio',
-    options: [
-      { value: 'Normal', label: 'Normal' },
-      { value: 'Anormal', label: 'Anormal' },
-    ],
-  },
-  {
     id: 'digestif',
-    title: 'Système digestif',
+    title: 'Digestif',
     type: 'checkbox',
     options: [
-      { value: 'Appétit conservé', label: 'Appétit conservé' },
-      { value: 'Appétit diminué', label: 'Appétit diminué' },
-      { value: 'Alimentation bien tolérée', label: 'Alimentation bien tolérée' },
+      { value: 'Abdomen souple et non douloureux', label: 'Abdomen souple et non douloureux' },
+      { value: 'Bruits intestinaux présents', label: 'Bruits intestinaux présents' },
       { value: 'Nausées', label: 'Nausées' },
       { value: 'Vomissements', label: 'Vomissements' },
-      { value: 'Selles normales', label: 'Selles normales' },
-      { value: 'Constipation', label: 'Constipation' },
+      { value: 'Distension abdominale', label: 'Distension abdominale' },
       { value: 'Diarrhée', label: 'Diarrhée' },
+      { value: 'Constipation', label: 'Constipation' },
+      { value: 'Appétit diminué', label: 'Appétit diminué' },
+      { value: 'Appétit normal', label: 'Appétit normal' },
     ],
     hasIntervention: true,
     interventions: [
-        { value: 'Surveillance des nausées/vomissements', label: 'Surveillance N/V' },
-        { value: 'Administration d\'antiémétiques si prescrits', label: 'Admin. antiémétiques' },
-        { value: 'Surveillance du transit intestinal', label: 'Surveillance du transit' },
-        { value: 'Encourager l\'hydratation', label: 'Encourager l\'hydratation' },
-        { value: 'Conseils diététiques', label: 'Conseils diététiques' },
+      { value: 'Surveillance des apports/éliminations', label: 'Surveillance des apports/éliminations' },
+      { value: 'Administration d\'antiémétiques', label: 'Administration d\'antiémétiques' },
+      { value: 'Mesures de confort (positionnement, compresses)', label: 'Mesures de confort (positionnement, compresses)' },
+      { value: 'Enseignement diététique', label: 'Enseignement diététique' },
     ]
   },
   {
     id: 'urinaire',
-    title: 'Système urinaire',
+    title: 'Urinaire',
     type: 'checkbox',
     options: [
-      { value: 'Diurèse normale', label: 'Diurèse normale' },
-      { value: 'Diurèse diminuée', label: 'Diurèse diminuée' },
-      { value: 'Anurie', label: 'Anurie' },
-      { value: 'Urine claire', label: 'Urine claire' },
-      { value: 'Urine foncée', label: 'Urine foncée' },
-      { value: 'Sonde urinaire', label: 'Sonde urinaire' },
-      { value: 'Absence de signe d’infection', label: 'Absence de signe d’infection' },
+      { value: 'Mictions régulières et sans douleur', label: 'Mictions régulières et sans douleur' },
+      { value: 'Dysurie', label: 'Dysurie' },
+      { value: 'Hématurie', label: 'Hématurie' },
+      { value: 'Rétention urinaire', label: 'Rétention urinaire' },
+      { value: 'Incontinence urinaire', label: 'Incontinence urinaire' },
+      { value: 'Oligurie', label: 'Oligurie' },
+      { value: 'Polyurie', label: 'Polyurie' },
     ],
     hasIntervention: true,
     interventions: [
-        { value: 'Surveillance de la diurèse', label: 'Surveillance de la diurèse' },
-        { value: 'Soins de sonde urinaire', label: 'Soins de sonde urinaire' },
-        { value: 'Encourager les apports hydriques', label: 'Encourager les apports hydriques' },
-        { value: 'Surveillance des signes d\'infection', label: 'Surveillance signes d\'infection' },
-        { value: 'Aide à la mobilisation pour la miction', label: 'Aide à la miction' },
+      { value: 'Surveillance des apports/éliminations', label: 'Surveillance des apports/éliminations' },
+      { value: 'Hygiène périnéale', label: 'Hygiène périnéale' },
+      { value: 'Aide à la miction (positionnement, intimité)', label: 'Aide à la miction (positionnement, intimité)' },
     ]
   },
   {
     id: 'tegumentaire',
-    title: 'Tégumentaire (peau)',
+    title: 'Tégumentaire',
     type: 'checkbox',
     options: [
-      { value: 'Peau intacte', label: 'Peau intacte' },
+      { value: 'Peau intacte et propre', label: 'Peau intacte et propre' },
       { value: 'Rougeur', label: 'Rougeur' },
-      { value: 'Lésion/plaie', label: 'Lésion/plaie' },
-      { value: 'Escarre', label: 'Escarre' },
-      { value: 'Pansement propre', label: 'Pansement propre' },
-      { value: 'Pansement souillé', label: 'Pansement souillé' },
-      { value: 'Changement de pansement effectué', label: 'Changement de pansement effectué' },
+      { value: 'Oedème', label: 'Oedème' },
+      { value: 'Peau sèche', label: 'Peau sèche' },
+      { value: 'Lésion (décrire)', label: 'Lésion (décrire)' },
+      { value: 'Diaphorèse', label: 'Diaphorèse' },
+      { value: 'Chaleur / froideur', label: 'Chaleur / froideur' },
     ],
     hasIntervention: true,
     interventions: [
-        { value: 'Réfection du pansement selon protocole', label: 'Réfection du pansement' },
-        { value: 'Surveillance de l\'état de la plaie', label: 'Surveillance de la plaie' },
-        { value: 'Prévention d\'escarres', label: 'Prévention d\'escarres' },
-        { value: 'Application de crème protectrice', label: 'Application de crème' },
-        { value: 'Évaluation de la douleur de la plaie', label: 'Évaluation douleur plaie' },
+      { value: 'Changement de position aux 2h', label: 'Changement de position aux 2h' },
+      { value: 'Application de crème/onguent', label: 'Application de crème/onguent' },
+      { value: 'Pansement refait (décrire)', label: 'Pansement refait (décrire)' },
+      { value: 'Soins d\'hygiène', label: 'Soins d\'hygiène' },
     ]
   },
   {
     id: 'geriatrie',
-    title: 'Évaluation gériatrique',
+    title: 'Gériatrie',
     type: 'checkbox',
     options: [
-      { value: 'Confus(e) / désorienté(e)', label: 'Confus(e) / désorienté(e)' },
-      { value: 'Agitation', label: 'Agitation' },
-      { value: 'Apathie / Lenteur', label: 'Apathie / Lenteur' },
-      { value: 'Marche avec aide technique', label: 'Marche avec aide technique' },
-      { value: 'Risque de chute élevé', label: 'Risque de chute élevé' },
-      { value: 'Alité(e)', label: 'Alité(e)' },
-      { value: 'Aide nécessaire pour les transferts', label: 'Aide nécessaire pour les transferts' },
+      { value: 'Chutes récentes', label: 'Chutes récentes' },
+      { value: 'Délirium', label: 'Délirium' },
+      { value: 'Démence', label: 'Démence' },
+      { value: 'Incontinence urinaire/fécale', label: 'Incontinence urinaire/fécale' },
+      { value: 'Problèmes de vision/audition', label: 'Problèmes de vision/audition' },
       { value: 'Risque de dénutrition', label: 'Risque de dénutrition' },
-      { value: 'Risque de déshydratation', label: 'Risque de déshydratation' },
-      { value: 'Aide au repas nécessaire', label: 'Aide au repas nécessaire' },
-      { value: 'Troubles de déglutition / Fausses routes', label: 'Troubles de déglutition / Fausses routes' },
+      { value: 'Risque d\'escarres', label: 'Risque d\'escarres' },
     ],
   },
   {
-    id: 'finDeVie', // New section for end-of-life symptoms
-    title: 'Fin de vie (symptômes)',
+    id: 'finDeVie',
+    title: 'Fin de vie / Soins palliatifs',
     type: 'checkbox',
-    options: finDeVieOptions,
-    hasOtherField: true, // Indicates this section has an "Other" text input
+    options: finDeVieOptions, // Uses the separate finDeVieOptions constant
+    hasOtherField: true,
   },
   {
     id: 'observations',
     title: 'Observations générales',
     type: 'checkbox',
     options: [
-        { value: 'Calme et coopérant(e)', label: 'Calme et coopérant(e)' },
-        { value: 'Anxieux/Anxieuse', label: 'Anxieux/Anxieuse' },
-        { value: 'Agité(e)', label: 'Agité(e)' },
-        { value: 'Sueurs / Diaphorèse', label: 'Sueurs / Diaphorèse' },
-        { value: 'Sommeil réparateur', label: 'Sommeil réparateur' },
-        { value: 'Sommeil perturbé', label: 'Sommeil perturbé' },
-        { value: 'Mobilisation bien tolérée', label: 'Mobilisation bien tolérée' },
-        { value: 'Bonne compréhension des soins', label: 'Bonne compréhension des soins' },
-        { value: 'Suivi médical en cours', label: 'Suivi médical en cours' },
-    ]
+      { value: 'Patient calme et confortable', label: 'Patient calme et confortable' },
+      { value: 'Anxiété', label: 'Anxiété' },
+      { value: 'Agitation', label: 'Agitation' },
+      { value: 'Tristesse / Humeur dépressive', label: 'Tristesse / Humeur dépressive' },
+      { value: 'Colère / Irritabilité', label: 'Colère / Irritabilité' },
+      { value: 'Sollicitations fréquentes', label: 'Sollicitations fréquentes' },
+      { value: 'Aide à l\'alimentation', label: 'Aide à l\'alimentation' },
+      { value: 'Repos au lit', label: 'Repos au lit' },
+      { value: 'Participation aux soins', label: 'Participation aux soins' },
+      { value: 'Refus de soins', label: 'Refus de soins' },
+      { value: 'Plaintes exprimées (non douloureuses)', label: 'Plaintes exprimées (non douloureuses)' },
+    ],
   },
   {
     id: 'visites',
-    title: 'Visites de la famille / proches',
+    title: 'Visites',
     type: 'radio',
     options: [
-        { value: 'Oui', label: 'Oui' },
-        { value: 'Non', label: 'Non' },
-        { value: 'Non applicable', label: 'Non applicable' },
-    ]
-  }
-];
-
-export const painFieldsData: PainField[] = [
-    { 
-      id: 'p', 
-      label: 'P - Provocation / Palliation', 
-      type: 'checkbox',
-      options: [
-        { value: 'Mouvement', label: 'Mouvement' },
-        { value: 'Repos', label: 'Repos' },
-        { value: 'Pression', label: 'Pression' },
-        { value: 'Changement de position', label: 'Changement de position' },
-        { value: 'Médication', label: 'Médication' },
-      ]
-    },
-    { 
-      id: 'q', 
-      label: 'Q - Qualité', 
-      type: 'checkbox',
-      options: [
-        { value: 'Brûlure', label: 'Brûlure' },
-        { value: 'Lancinante', label: 'Lancinante' },
-        { value: 'Sourde', label: 'Sourde' },
-        { value: 'Écrasement', label: 'Écrasement' },
-        { value: 'Coup de poignard', label: 'Coup de poignard' },
-        { value: 'Picotement', label: 'Picotement' },
-      ] 
-    },
-    { 
-      id: 'r', 
-      label: 'R - Région / Rayonnement', 
-      type: 'checkbox',
-      options: [
-        { value: 'Localisée', label: 'Localisée' },
-        { value: 'Irradiation', label: 'Irradiation' },
-        { value: 'Diffuse', label: 'Diffuse' },
-      ]
-    },
-    { 
-      id: 's', 
-      label: 'S - Sévérité / Intensité', 
-      type: 'radio',
-      options: [
-        { value: 'Légère (1-3/10)', label: 'Légère (1-3/10)' },
-        { value: 'Modérée (4-6/10)', label: 'Modérée (4-6/10)' },
-        { value: 'Sévère (7-10/10)', label: 'Sévère (7-10/10)' },
-        { value: 'Non évaluable', label: 'Non évaluable' },
-      ]
-    },
-    { 
-      id: 't', 
-      label: 'T - Temps', 
-      type: 'checkbox',
-      options: [
-        { value: 'Continue', label: 'Continue' },
-        { value: 'Intermittente', label: 'Intermittente' },
-        { value: 'Apparition brutale', label: 'Apparition brutale' },
-        { value: 'Apparition progressive', label: 'Apparition progressive' },
-      ]
-    },
-    { 
-      id: 'u', 
-      label: 'U - Symptômes associés', 
-      type: 'checkbox',
-      options: [
-        { value: 'Nausées', label: 'Nausées' },
-        { value: 'Vertiges', label: 'Vertiges' },
-        { value: 'Sueurs', label: 'Sueurs' },
-        { value: 'Anxiété', label: 'Anxiété' },
-        { value: 'Fatigue', label: 'Fatigue' },
-        { value: 'Aucun', label: 'Aucun' },
-      ]
-    },
-];
-
-export const painNonPharmaInterventions: Option[] = [
-    { value: 'Installation dans une position de confort', label: 'Installation en position de confort' },
-    { value: 'Application de chaleur/froid', label: 'Application de chaleur/froid' },
-    { value: 'Techniques de relaxation/distraction', label: 'Techniques de relaxation/distraction' },
-    { value: 'Soutien psychologique/écoute active', label: 'Soutien psychologique/écoute active' },
-    { value: 'Mobilisation douce', label: 'Mobilisation douce' },
-    { value: 'Massage/friction', label: 'Massage/friction' },
+      { value: 'Visite de la famille', label: 'Visite de la famille' },
+      { value: 'Visite du médecin', label: 'Visite du médecin' },
+      { value: 'Aucune visite', label: 'Aucune visite' },
+    ],
+  },
 ];
 
 export const scenariosData: ScenarioCategory[] = [
@@ -362,89 +376,106 @@ export const scenariosData: ScenarioCategory[] = [
         title: 'Routine & Événements',
         scenarios: [
             {
-                label: 'Patient Stable',
+                label: 'Admission Standard',
                 state: {
-                    etatEveil: 'Alerte',
-                    signesVitaux: 'Normal',
-                    signesNeuro: 'Normal',
-                    respiratoire: ['Respiration régulière', 'Aucun signe de détresse'],
-                    digestif: ['Appétit conservé', 'Selles normales'],
-                    urinaire: ['Diurèse normale', 'Urine claire'],
-                    tegumentaire: ['Peau intacte'],
-                    observations: ['Calme et coopérant(e)'],
-                    douleur: { ...initialPainState, s: 'Légère (1-3/10)' },
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
-                }
-            },
-            {
-                label: 'Patient en Amélioration',
-                state: {
-                    etatEveil: 'Alerte',
-                    signesVitaux: 'Normal',
-                    observations: ['Calme et coopérant(e)', 'Mobilisation bien tolérée'],
-                    digestif: ['Appétit conservé'],
-                    particularites: 'Nette amélioration de l\'état général. Le/la patient(e) se mobilise mieux et rapporte une diminution significative de la douleur. L\'appétit est bon. Poursuite du plan de soins.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
-                }
-            },
-            {
-                label: 'Entrée Patient',
-                state: {
-                    admissionCheckboxes: ['Bracelet d\'identification vérifié et conforme', 'Allergies vérifiées et signalées au dossier', 'Enseignement sur le fonctionnement de l\'unité et l\'appel infirmier effectué'],
+                    admissionCheckboxes: ['Bracelet d\'identification vérifié et conforme', 'Allergies vérifiées et signalées au dossier', 'Enseignement sur le fonctionnement de l\'unité et l\'appel infirmier effectué', 'Évaluation initiale de la douleur effectuée'],
                     orientation: ['Temps', 'Lieu', 'Personne'],
                     autonomie: 'Autonome',
-                    etatEveil: 'Alerte',
-                    observations: ['Calme et coopérant(e)'],
-                    particularites: 'Admission pour [MOTIF]. Installation dans la chambre effectuée. Constantes de base prises et dossier complété. Le/la patient(e) semble bien s\'adapter à l\'environnement.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    effetsPersonnels: 'Lunettes, prothèses dentaires',
+                    accesVeineux: true,
+                    accesVeineux_gauge: '#20',
+                    accesVeineux_site: 'avant-bras gauche (ABG)',
+                    piccLine: false,
+                    drains: [],
+                    sondes: [],
+                    etatEveil: 'Éveillé et alerte',
+                    signesVitaux: 'Stable',
+                    signesNeuro: 'Pupilles isocores et réactives',
+                    respiratoire: ['Respiration régulière et facile'],
+                    digestif: ['Abdomen souple et non douloureux', 'Bruits intestinaux présents', 'Appétit normal'],
+                    urinaire: ['Mictions régulières et sans douleur'],
+                    tegumentaire: ['Peau intacte et propre'],
+                    geriatrie: [],
+                    observations: ['Patient calme et confortable'],
+                    visites: 'Aucune visite',
                 }
             },
             {
-                label: 'Préparation au Congé',
+                label: 'Post-Op (Stable)',
                 state: {
-                    observations: ['Bonne compréhension des soins', 'Calme et coopérant(e)'],
-                    visites: 'Oui',
-                    particularites: 'Enseignement pour le congé effectué concernant la médication et les prochains rendez-vous. Le/la patient(e) verbalise une bonne compréhension. Le congé est prévu pour demain matin. La famille est avisée et présente.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    admissionCheckboxes: [],
+                    orientation: ['Temps', 'Lieu', 'Personne'],
+                    autonomie: 'Aide x 1',
+                    effetsPersonnels: '',
+                    accesVeineux: true,
+                    accesVeineux_gauge: '#18',
+                    accesVeineux_site: 'bras droit (BD)',
+                    piccLine: false,
+                    drains: ['Jackson-Pratt (JP)'],
+                    sondes: [],
+                    position: ['Décubitus dorsal'],
+                    etatEveil: 'Éveillé et alerte',
+                    signesVitaux: 'Stable',
+                    signesNeuro: 'Pupilles isocores et réactives',
+                    respiratoire: ['Respiration régulière et facile', 'Toux présente'],
+                    respiratoire_interventions: ['Exercices de respiration profonde'],
+                    digestif: ['Abdomen souple et non douloureux', 'Bruits intestinaux présents', 'Nausées'],
+                    digestif_medicament: 'Ondansétron 4mg IV PRN',
+                    urinaire: ['Mictions régulières et sans douleur'],
+                    tegumentaire: ['Lésion (décrire)'],
+                    tegumentaire_interventions: ['Pansement refait (décrire)'],
+                    douleur: {
+                        ...initialPainState,
+                        s: '4-6 - Douleur modérée',
+                        medicament: 'Morphine 2mg IV à 14h00',
+                    },
+                    observations: ['Patient calme et confortable'],
+                    visites: 'Visite de la famille',
                 }
             },
             {
-                label: 'Mobilisation Réussie',
+                label: 'Routine (Stable)',
                 state: {
-                    position: ['Assis(e) au fauteuil'],
-                    observations: ['Mobilisation bien tolérée'],
-                    geriatrie: ['Marche avec aide technique'],
-                    particularites: 'Premier lever post-opératoire réussi. Le/la patient(e) s\'est mobilisé(e) au fauteuil avec l\'aide de la physiothérapeute. Pas de vertige ni de douleur rapportée pendant la mobilisation.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    admissionCheckboxes: [],
+                    orientation: ['Temps', 'Lieu', 'Personne'],
+                    autonomie: 'Autonome',
+                    effetsPersonnels: '',
+                    accesVeineux: false,
+                    piccLine: false,
+                    drains: [],
+                    sondes: [],
+                    position: ['Assis au fauteuil'],
+                    etatEveil: 'Éveillé et alerte',
+                    signesVitaux: 'Dans les limites normales',
+                    signesNeuro: 'Pupilles isocores et réactives',
+                    respiratoire: ['Respiration régulière et facile'],
+                    digestif: ['Abdomen souple et non douloureux', 'Bruits intestinaux présents', 'Appétit normal'],
+                    urinaire: ['Mictions régulières et sans douleur'],
+                    tegumentaire: ['Peau intacte et propre'],
+                    geriatrie: [],
+                    finDeVie: [],
+                    observations: ['Patient calme et confortable'],
+                    visites: 'Aucune visite',
+                    particularites: '',
+                    douleur: initialPainState,
                 }
             },
             {
-                label: 'Post-Op J+1',
+                label: 'Transfert vers une autre unité',
                 state: {
-                    position: ['Position semi-assise'],
-                    etatEveil: 'Alerte',
-                    signesVitaux: 'Normal',
-                    respiratoire: ['Respiration régulière'],
-                    tegumentaire: ['Pansement propre', 'Changement de pansement effectué'],
-                    observations: ['Mobilisation bien tolérée'],
-                    particularites: 'Réfection du pansement au site opératoire [préciser site]. La plaie est belle, sans signe d\'infection. Drains en place, productifs. Mobilisation au fauteuil effectuée.',
-                    douleur: { ...initialPainState, s: 'Modérée (4-6/10)', p: ['Mouvement'], q: ['Lancinante'], site: 'Site opératoire', medicament: 'Analgésie administrée avec bon soulagement.' },
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    particularites: 'Patient transféré à l\'unité de [Nom de l\'unité] pour [Raison du transfert]. Rapport complet transmis à l\'infirmière réceptrice. Patient stable durant le transport.',
+                    signesVitaux: 'Stable',
+                    etatEveil: 'Éveillé et alerte',
+                    observations: ['Patient calme et confortable'],
                 }
             },
             {
-                label: 'Fin de quart',
+                label: 'Congé du patient',
                 state: {
-                    observations: ['Calme et coopérant(e)', 'Sommeil réparateur'],
-                    particularites: 'Transmission effectuée à l\'équipe suivante. État stable, aucun événement notable durant le quart.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    particularites: 'Congé du patient. Enseignement de départ effectué concernant [médication, soins, suivi]. Le patient a verbalisé sa compréhension. A quitté l\'unité accompagné de [famille/ami].',
+                    signesVitaux: 'Stable',
+                    autonomie: 'Autonome',
+                    observations: ['Participation aux soins'],
                 }
             },
         ],
@@ -453,169 +484,132 @@ export const scenariosData: ScenarioCategory[] = [
         title: 'Suivis Spécifiques',
         scenarios: [
             {
-                label: 'Bon Contrôle Douleur',
+                label: 'Douleur chronique exacerbée',
                 state: {
-                    douleur: { ...initialPainState, s: 'Légère (1-3/10)', medicament: 'Analgésie PO bien efficace.' },
-                    observations: ['Calme et coopérant(e)', 'Sommeil réparateur'],
-                    particularites: 'La douleur est bien contrôlée avec l\'analgésie actuelle. Le/la patient(e) rapporte un score de douleur à 2/10 et a pu se reposer confortablement.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    douleur: {
+                        p: ['Mouvement'], q: ['Lancinante', 'Sourde'], r: ['Localisée'], site: 'Région lombaire', s: '7-10 - Douleur sévère', t: ['Constante', 'Chronique (longue durée)'], u: ['Impact sur les activités quotidiennes', 'Patient exprime de l\'anxiété/détresse'], medicament: 'Hydromorphone 2mg PO PRN', interventionsNonPharma: ['Application de chaud/froid', 'Techniques de relaxation (respiration, imagerie)']
+                    },
+                    observations: ['Anxiété', 'Sollicitations fréquentes'],
+                    etatEveil: 'Éveillé et alerte',
+                    signesVitaux: 'Stable',
                 }
             },
             {
-                label: 'Soutien respiratoire',
+                label: 'Insuffisance Respiratoire (O₂)',
                 state: {
-                    position: ['Position semi-assise'],
-                    etatEveil: 'Alerte',
-                    respiratoire: ['Dyspnée au repos', 'Utilisation d’O₂'],
+                    respiratoire: ['Dyspnée', 'Utilisation d’O₂', 'Sons pulmonaires anormaux (crépitants, sibilants)'],
                     respiratoire_o2_litres: '3',
-                    respiratoire_interventions: ['Surveillance de la saturation en O₂', 'Auscultation pulmonaire', 'Position semi-assise', 'Administration d\'O₂ selon prescription'],
-                    observations: ['Anxieux/Anxieuse'],
-                    particularites: 'Présente une augmentation soudaine de sa dyspnée. Saturation à 88% à l\'air ambiant, remonte à 94% avec O2 à 3L/min via lunette nasale. Toux productive avec sécrétions blanchâtres. Médecin avisé des changements.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    respiratoire_medicament: 'Salbutamol 2.5mg nébulisation',
+                    respiratoire_interventions: ['Positionnement pour optimiser la respiration'],
+                    signesVitaux: 'Instable',
+                    etatEveil: 'Léthargique',
+                    observations: ['Anxiété'],
                 }
             },
             {
-                label: 'Plaie en guérison',
+                label: 'Problèmes digestifs (Nausées/Vomissements)',
                 state: {
-                    tegumentaire: ['Lésion/plaie', 'Changement de pansement effectué'],
-                    tegumentaire_interventions: ['Réfection du pansement selon protocole', 'Surveillance de l\'état de la plaie'],
-                    particularites: 'Réfection du pansement de la plaie au [SITE]. Aspect de la plaie : propre, sans signe d\'infection, en bonne voie de cicatrisation. Patient(e) a bien toléré le soin.',
-                    douleur: { ...initialPainState, s: 'Légère (1-3/10)', p: ['Pression'], site: 'Site de la plaie' },
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    digestif: ['Nausées', 'Vomissements', 'Appétit diminué'],
+                    digestif_medicament: 'Ondansétron 4mg IV',
+                    digestif_interventions: ['Surveillance des apports/éliminations', 'Mesures de confort (positionnement, compresses)'],
+                    observations: ['Patient exprime de l\'anxiété/détresse'],
                 }
             },
             {
-                label: 'Diabète Suivi',
+                label: 'Surveillance Glycémique',
                 state: {
-                    digestif: ['Alimentation bien tolérée'],
-                    particularites: 'Glycémie capillaire effectuée : [VALEUR] mmol/L. Administration de [X] unités d\'insuline [TYPE] selon l\'échelle mobile. Repas bien toléré. Aucun signe d\'hypo/hyperglycémie noté.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    particularites: 'Glycémie capillaire à [Heure] : [Valeur] mmol/L. Administration de [X] unités d\'insuline [Type] selon le protocole.',
+                    digestif: ['Appétit normal'],
+                    signesNeuro: 'Pupilles isocores et réactives',
+                    observations: ['Patient calme et confortable'],
                 }
             },
             {
-                label: 'Suivi transfusionnel',
+                label: 'Soin de Plaie Complexe',
                 state: {
-                    observations: ['Suivi médical en cours'],
-                    particularites: 'Début de la transfusion du 1er culot globulaire (CG) à [HEURE]. Patient(e) apyrétique, signes vitaux stables avant, pendant et après la transfusion. Aucune réaction transfusionnelle observée. Surveillance maintenue selon protocole.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    tegumentaire: ['Lésion (décrire)'],
+                    tegumentaire_interventions: ['Pansement refait (décrire)'],
+                    particularites: 'Pansement de la plaie [Site de la plaie] refait selon protocole. Aspect de la plaie : [description]. Patient a toléré la procédure sans douleur significative.',
+                    douleur: {
+                        ...initialPainState,
+                        s: '1-3 - Douleur légère',
+                    },
                 }
             },
-            {
-                label: 'Soins post-AVC',
-                state: {
-                    etatEveil: 'Somnolent',
-                    signesNeuro: 'Anormal',
-                    geriatrie: ['Aide nécessaire pour les transferts', 'Troubles de déglutition / Fausses routes', 'Apathie / Lenteur'],
-                    particularites: 'Patient(e) au J2 de son AVC ischémique. Hémiparésie droite. Difficulté d\'élocution (aphasie). Alimentation en texture adaptée bien tolérée. Mobilisation au fauteuil avec aide x2. Plan de soins suivi.',
-                    douleur: { ...initialPainState, s: 'Non évaluable' },
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
-                }
-            },
-            {
-                label: 'Suivi infectieux',
-                state: {
-                    etatEveil: 'Somnolent',
-                    signesVitaux: 'Anormal',
-                    tegumentaire: ['Rougeur'],
-                    urinaire: ['Urine foncée'],
-                    observations: ['Sommeil perturbé', 'Sueurs / Diaphorèse'],
-                    particularites: 'Pic fébrile à 38.9°C. Hémocultures et ECBU prélevés. Initiation de l\'antibiothérapie IV selon la prescription. Bien hydraté(e). Frissons rapportés.',
-                    douleur: { ...initialPainState, s: 'Modérée (4-6/10)', p: ['Repos'], q: ['Sourde'], site: 'Diffuse (courbatures)' },
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
-                }
-            },
-            {
-                label: 'Gestion HTA',
-                state: {
-                    signesVitaux: 'Anormal',
-                    observations: ['Anxieux/Anxieuse'],
-                    particularites: 'Se plaint de céphalées. Tension artérielle mesurée à [VALEUR] mmHg. Patient(e) mis(e) au repos au lit. Médecin avisé. Administration de [MÉDICAMENT] selon prescription. Surveillance tensionnelle horaire initiée.',
-                    douleur: { ...initialPainState, s: 'Modérée (4-6/10)', site: 'Céphalées', q: ['Sourde'] },
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
-                }
-            },
-        ]
+        ],
     },
     {
         title: 'Alertes & Situations Aiguës',
         scenarios: [
             {
-                label: 'Suivi post-chute',
+                label: 'Chute du patient',
                 state: {
-                    etatEveil: 'Alerte',
-                    signesNeuro: 'Anormal',
-                    geriatrie: ['Risque de chute élevé'],
+                    geriatrie: ['Chutes récentes'],
+                    particularites: 'Patient retrouvé au sol près du lit. Pas de perte de conscience apparente. Signes vitaux stables post-chute. Examen physique sans lésion visible immédiate. Informé le médecin traitant. Surveillance accrue mise en place.',
+                    observations: ['Agitation', 'Anxiété'],
+                    etatEveil: 'Éveillé et alerte',
+                    signesNeuro: 'Pupilles isocores et réactives',
+                    signesVitaux: 'Stable',
+                }
+            },
+            {
+                label: 'Changement aigu état de conscience',
+                state: {
+                    etatEveil: 'Obnubilé',
+                    signesNeuro: 'Diminution état de conscience',
+                    signesVitaux: 'Instable',
+                    particularites: 'Changement soudain de l\'état de conscience. Patient répond difficilement aux commandes. Patient répond difficilement aux commandes. Pupilles réactives mais lentes. Avis médical urgent demandé. Préparation pour imagerie cérébrale.',
+                }
+            },
+            {
+                label: 'Épisode d\'Hypotension',
+                state: {
+                    signesVitaux: 'Instable',
+                    particularites: 'Épisode d\'hypotension avec une TA à [valeur] à [heure]. Patient a rapporté des étourdissements. Position de Trendelenburg adoptée et médecin avisé. Bolus de [fluide] IV débuté. TA subséquente à [valeur].',
+                    signesNeuro: 'Vertiges',
+                    etatEveil: 'Léthargique',
+                }
+            },
+            {
+                label: 'Réaction Allergique Légère',
+                state: {
                     tegumentaire: ['Rougeur'],
-                    observations: ['Agité(e)'],
-                    particularites: 'Patient(e) retrouvé(e) au sol près de son lit. Mécanisme de chute non-observé. Se plaint de douleur à la hanche droite. Pas de trauma crânien visible. Examen neurologique complet et surveillance initiés. Médecin avisé. Levée assistée.',
-                    douleur: { ...initialPainState, s: 'Sévère (7-10/10)', site: 'Hanche droite', p: ['Mouvement'], q: ['Sourde'] },
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
+                    particularites: 'Patient a développé une éruption cutanée prurigineuse après l\'administration de [Médicament]. Médecin avisé. Administration de diphenhydramine 25mg PO. Surveillance accrue des signes vitaux et respiratoires.',
+                    respiratoire: ['Respiration régulière et facile'],
+                    observations: ['Anxiété'],
                 }
             },
-            {
-                label: 'Éval. douleur thoracique',
-                state: {
-                    position: ['Position semi-assise'],
-                    etatEveil: 'Alerte',
-                    signesVitaux: 'Anormal',
-                    respiratoire: ['Aucun signe de détresse'],
-                    observations: ['Anxieux/Anxieuse'],
-                    particularites: 'Se plaint d\'une douleur thoracique rétrosternale survenue il y a 20 minutes. ECG effectué, en attente d\'interprétation par le médecin. Prélèvements sanguins (troponines) envoyés. Surveillances rapprochées.',
-                    douleur: { ...initialPainState, s: 'Sévère (7-10/10)', q: ['Écrasement'], r: ['Irradiation'], site: 'Rétrosternale avec irradiation bras gauche', t: ['Continue'], u: ['Sueurs', 'Anxiété'], medicament: 'Nitroglycérine SL administrée avec soulagement partiel.' },
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
-                }
-            },
-            {
-                label: 'Gestion de l\'agitation',
-                state: {
-                    etatEveil: 'Alerte',
-                    geriatrie: ['Confus(e) / désorienté(e)', 'Agitation', 'Risque de chute élevé'],
-                    observations: ['Agité(e)'],
-                    particularites: 'Présente une agitation psychomotrice importante, tente de se lever du lit malgré les consignes. Propos incohérents. Surveillance accrue pour assurer sa sécurité. Mesures de contention non-pharmacologiques mises en place (ex: présence rassurante). Médecin avisé pour réévaluation.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
-                }
-            },
-            {
-                label: 'Correction d\'hypo',
-                state: {
-                    etatEveil: 'Somnolent',
-                    signesNeuro: 'Anormal',
-                    observations: ['Sueurs / Diaphorèse'],
-                    particularites: 'Patient(e) retrouvé(e) somnolent(e). Glycémie capillaire à [VALEUR] mmol/L. Resucrage effectué avec [PRODUIT] per os. Contrôle glycémique à faire dans 15 minutes. Médecin avisé.',
-                    finDeVie: [], // Ensure new field is present
-                    finDeVie_other: '', // Ensure new field is present
-                }
-            },
-        ]
+        ],
     },
     {
         title: 'Soins Palliatifs',
         scenarios: [
             {
-                label: 'Soins de confort',
+                label: 'Symptômes de fin de vie (standard)',
                 state: {
-                    position: ['Décubitus dorsal'],
+                    finDeVie: ['Pauses respiratoires', 'Râles terminaux (sécrétions audibles)', 'Diminution des apports oraux', 'Altération de l\'état de conscience'],
+                    observations: ['Patient calme et confortable'],
+                    particularites: 'Patient en soins de confort. Administration de morphine sc pour confort respiratoire.',
                     etatEveil: 'Somnolent',
-                    digestif: ['Appétit diminué', 'Nausées'],
-                    digestif_medicament: 'Gravol 10mg IV',
-                    observations: ['Calme et coopérant(e)'],
-                    visites: 'Oui',
-                    douleur: { ...initialPainState, s: 'Sévère (7-10/10)', t: ['Continue'], medicament: 'Hydromorphone 2mg SC aux 3h, bon contrôle.', interventionsNonPharma: ['Installation dans une position de confort', 'Soutien psychologique/écoute active'] },
-                    finDeVie: ['Râles terminaux (sécrétions audibles)', 'Pauses respiratoires'], // Example for end-of-life
-                    finDeVie_other: '', // Ensure new field is present
                 }
             },
-        ]
-    }
+            {
+                label: 'Symptômes de fin de vie (avec agitation)',
+                state: {
+                    finDeVie: ['Agitation ou confusion', 'Râles terminaux (sécrétions audibles)', 'Incapacité à bouger'],
+                    observations: ['Agitation', 'Anxiété'],
+                    particularites: 'Patient agité, désorienté. Mesures de confort intensifiées. Avis médical pour ajustement de la sédation.',
+                    etatEveil: 'Obnubilé',
+                }
+            },
+            {
+                label: 'Soutien à la famille',
+                state: {
+                    finDeVie: ['Retrait social / Perte d\'intérêt'],
+                    observations: ['Visite de la famille'],
+                    particularites: 'Longue discussion avec la famille concernant l\'évolution de l\'état du patient et le plan de soins de confort. Soutien émotionnel offert. La famille exprime sa compréhension et son accord avec l\'approche palliative.',
+                }
+            },
+        ],
+    },
 ];

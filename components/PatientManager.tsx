@@ -1,9 +1,12 @@
 import React from 'react';
 import type { Patient } from '../types';
 
-const UserGroupIcon: React.FC<{className?: string}> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.962c.57-1.023.995-2.128 1.285-3.257m-11.23 4.242c.370-1.01.74-2.023 1.125-3.036m-1.125 3.036a9.094 9.094 0 013.741-.479 3 3 0 014.682-2.72M6.75 12.25c0-2.418 1.583-4.49 3.75-5.25m2.25 10.512c-2.167-.76-3.75-2.834-3.75-5.25m0 0V7.5A2.25 2.25 0 0111.25 5.25v1.5c0 .621.504 1.125 1.125 1.125p-3.75 0h.008v.008h-.008v-.008zm0 3.75c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125v-3.75z" />
+const UsersIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 010 7.75" />
     </svg>
 );
 
@@ -12,14 +15,15 @@ interface PatientManagerProps {
     selectedPatientId: string | null;
     onSelectPatient: (id: string | null) => void;
     onManagePatients: () => void;
+    selectedPatient: Patient | null;
 }
 
-const PatientManager: React.FC<PatientManagerProps> = ({ patients, selectedPatientId, onSelectPatient, onManagePatients }) => {
+const PatientManager: React.FC<PatientManagerProps> = ({ patients, selectedPatientId, onSelectPatient, onManagePatients, selectedPatient }) => {
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-700">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <UserGroupIcon className="w-8 h-8 text-teal-600 dark:text-teal-500" />
+                    <UsersIcon className="w-8 h-8 text-teal-600 dark:text-teal-500" />
                     <h2 className="text-xl font-bold text-slate-700 dark:text-slate-300">
                         Gestion des Patients
                     </h2>
@@ -45,6 +49,13 @@ const PatientManager: React.FC<PatientManagerProps> = ({ patients, selectedPatie
                     </button>
                 </div>
             </div>
+            {selectedPatient && (
+                <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md border border-slate-200 dark:border-slate-700 space-y-1">
+                    <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Dx:</strong> {selectedPatient.diagnosis || 'Non spécifié'}</p>
+                    <p className="text-sm text-red-600 dark:text-red-400 font-medium"><strong>Allergies:</strong> {selectedPatient.allergies || 'Aucune connue'}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Statut:</strong> {selectedPatient.codeStatus || 'Non spécifié'}</p>
+                </div>
+            )}
         </div>
     );
 };

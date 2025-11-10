@@ -11,21 +11,74 @@ import GeneratedNote from './components/GeneratedNote';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ParticularitesSection from './components/ParticularitesSection';
-import AccessCodeScreen from './components/AccessCodeScreen';
-import ChangePasswordModal from './components/ChangePasswordModal';
 import QuickScenarios from './components/QuickScenarios';
 import AdmissionSection from './components/AdmissionSection';
 import ClinicalAssistant from './components/ClinicalAssistant';
 import SaveLoad from './components/SaveLoad';
 import PatientManager from './components/PatientManager';
 import PatientModal from './components/PatientModal';
-import ShiftReportGenerator from './components/ShiftReportGenerator'; // New import
+import ShiftReportGenerator from './components/ShiftReportGenerator';
+import AccessCodeScreen from './components/AccessCodeScreen'; // New import
 
 const App: React.FC = () => {
-  const [accessCode, setAccessCode] = useState<string>(() => localStorage.getItem('APP_ACCESS_CODE') || '19960213');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [accessError, setAccessError] = useState<string | null>(null);
-  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+  // Auth State
+  const [accessGranted, setAccessGranted] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isSetupMode, setIsSetupMode] = useState(false);
+  
+  useEffect(() => {
+      const storedCode = localStorage.getItem('appAccessCode');
+      if (!storedCode) {
+          setIsSetupMode(true);
+      }
+      if (sessionStorage.getItem('isLoggedIn') === 'true' && storedCode) {
+          setAccessGranted(true);
+      }
+  }, []);
+
+  const handleAccessGranted = (code: string) => {
+      const storedCode = localStorage.getItem('appAccessCode');
+      if (storedCode) { // Login mode
+          if (code === storedCode) {
+              setAccessGranted(true);
+              sessionStorage.setItem('isLoggedIn', 'true');
+              setAuthError(null);
+          } else {
+              setAuthError("Code d'accès incorrect.");
+          }
+      } else { // First time setup
+          if (code.trim() === '') {
+              setAuthError("Le code ne peut pas être vide.");
+              return;
+          }
+          localStorage.setItem('appAccessCode', code);
+          setAccessGranted(true);
+          sessionStorage.setItem('isLoggedIn', 'true');
+          setAuthError(null);
+      }
+  };
+
+
+  const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
+  const [forceOffline, setForceOffline] = useState(false);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [processingMessage, setProcessingMessage] = useState<string | null>(null);
+  const [noteToRegenerate, setNoteToRegenerate] = useState<GeneratedNoteRecord | null>(null);
+
+  const effectiveIsOnline = isOnline && !forceOffline;
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('theme')) {
@@ -47,6 +100,10 @@ const App: React.FC = () => {
 
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  };
+  
+  const handleToggleForceOffline = () => {
+    setForceOffline(prev => !prev);
   };
 
   const initialFormState: FormState = useMemo(() => ({
@@ -123,9 +180,12 @@ const App: React.FC = () => {
             setFormState(prevState => ({...prevState, gender: selectedPatient.gender}));
         }
     } else {
-        setFormState(prevState => ({...prevState, gender: ''}));
+        if (!noteToRegenerate) { // Don't clear gender if we are in regeneration mode
+          setFormState(prevState => ({...prevState, gender: ''}));
+        }
     }
-  }, [selectedPatientId, patients]);
+  }, [selectedPatientId, patients, noteToRegenerate]);
+
 
   const handleSavePatient = (patientToSave: Omit<Patient, 'id'> & { id?: string }) => {
     if (patientToSave.id) { // Update existing patient
@@ -176,8 +236,6 @@ const App: React.FC = () => {
   const [isGeneratingShiftReport, setIsGeneratingShiftReport] = useState(false);
   const [shiftReportError, setShiftReportError] = useState<string | null>(null);
 
-  // State for editable full shift notes content
-  const [editableFullShiftNotesContentState, setEditableFullShiftNotesContentState] = useState<string | null>(null);
 
   const handleUpdateNoteInHistory = useCallback((patientId: string | null, timestamp: number, newContent: string) => {
     setGeneratedNotesHistory(prevHistory => 
@@ -187,6 +245,19 @@ const App: React.FC = () => {
           : record
       )
     );
+  }, []);
+
+  const handleDeleteNoteFromHistory = useCallback((timestamp: number) => {
+    setGeneratedNotesHistory(prevHistory => prevHistory.filter(note => note.timestamp !== timestamp));
+  }, []);
+
+  const handleRecallNote = useCallback((record: GeneratedNoteRecord) => {
+    setFormState(record.formState);
+    setSelectedPatientId(record.patientId);
+    setNoteToRegenerate(record);
+    // Optionally scroll to top or provide some visual feedback
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setAiNote(`Mode de regénération pour la note de ${new Date(record.timestamp).toLocaleTimeString()}. Modifiez le formulaire et cliquez sur "Générer" pour mettre à jour.`);
   }, []);
 
   // Save/Load State
@@ -222,10 +293,10 @@ const App: React.FC = () => {
     return formState.gender !== '' || formState.quart !== '' || formState.heure !== '';
   }, [formState]);
 
-  const isAdmissionSectionFilled = useMemo((): boolean => {
-    const { admissionCheckboxes, orientation, autonomie, effetsPersonnels, accesVeineux, piccLine, drains, sondes, accesVeineux_site, piccLine_site } = formState;
+  const isAdmissionSectionFilled = (state: FormState): boolean => {
+    const { admissionCheckboxes, orientation, autonomie, effetsPersonnels, accesVeineux, piccLine, drains, sondes, accesVeineux_site, piccLine_site } = state;
     return admissionCheckboxes.length > 0 || orientation.length > 0 || autonomie !== '' || effetsPersonnels.trim() !== '' || accesVeineux || piccLine || drains.length > 0 || sondes.length > 0 || accesVeineux_site.trim() !== '' || piccLine_site.trim() !== '';
-  }, [formState]);
+  };
 
   // Fix: Refine sectionId type for more accurate type checking within the function.
   const isSectionFilled = useCallback((sectionId: SectionData['id'] | 'douleur' | 'particularites', state: FormState): boolean => {
@@ -328,12 +399,14 @@ const App: React.FC = () => {
     setGenerationError(null);
     setIsGenerating(false);
     setSelectedPatientId(null);
-    setEditableFullShiftNotesContentState(null); // Reset edited full shift notes content
+    setNoteToRegenerate(null);
   }, [initialFormState]);
 
   const handleScenarioSelect = useCallback((scenarioState: Partial<FormState>) => {
     setFormState(prevState => ({ ...initialFormState, quart: prevState.quart, gender: prevState.gender, ...scenarioState }));
     setOpenSectionId(null);
+    setNoteToRegenerate(null);
+    setAiNote('');
   }, [initialFormState]);
 
   const isFormEmpty = useMemo(() => {
@@ -349,10 +422,9 @@ const App: React.FC = () => {
         aiNote,
         layoutSettings: settings,
         timestamp: Date.now(),
-        editableFullShiftNotesContent: editableFullShiftNotesContentState, // Save edited full shift notes content
     };
     setSavedStates(prev => ({ ...prev, [name]: newState }));
-  }, [formState, aiNote, settings, editableFullShiftNotesContentState]);
+  }, [formState, aiNote, settings]);
 
   const handleLoadState = useCallback((name: string) => {
     const stateToLoad = savedStates[name];
@@ -362,7 +434,6 @@ const App: React.FC = () => {
         if (stateToLoad.layoutSettings) {
             setSettings(stateToLoad.layoutSettings);
         }
-        setEditableFullShiftNotesContentState(stateToLoad.editableFullShiftNotesContent || null); // Load edited full shift notes content
     }
   }, [savedStates]);
 
@@ -374,10 +445,22 @@ const App: React.FC = () => {
     });
   }, []);
   
-  const buildClinicalData = (state: FormState): string => {
+  const buildClinicalData = useCallback((state: FormState, patientId: string | null): string => {
     const parts: string[] = [];
     const { douleur, particularites, quart, gender, heure, finDeVie, finDeVie_other } = state;
     
+    const patient = patients.find(p => p.id === patientId);
+    if (patient) {
+        const patientContext = [];
+        if (patient.diagnosis) patientContext.push(`Diagnostic principal: ${patient.diagnosis}.`);
+        if (patient.medicalHistory) patientContext.push(`Antécédents pertinents: ${patient.medicalHistory}.`);
+        if (patient.allergies) patientContext.push(`ALLERGIES CONNUES: ${patient.allergies}.`);
+        if (patient.codeStatus) patientContext.push(`Statut de réanimation: ${patient.codeStatus}.`);
+        if (patientContext.length > 0) {
+            parts.push(`CONTEXTE PATIENT : ${patientContext.join(' ')}`);
+        }
+    }
+
     const contextParts = [];
     if (quart) contextParts.push(`note rédigée durant le quart de ${quart}`);
     if (heure) contextParts.push(`observation faite vers ${heure}`);
@@ -474,22 +557,268 @@ const App: React.FC = () => {
     if (particularites.trim()) parts.push(`- Particularités / Événements notables : ${particularites.trim()}`);
       
     return parts.filter(Boolean).join('\n');
-  };
+  }, [patients]);
 
-  const handleGenerateNote = useCallback(async () => {
-    if (isFormEmpty) return;
-    setIsGenerating(true);
-    setGenerationError(null);
-    setAiNote('');
+  const generateNarrativeOfflineNote = useCallback((state: FormState, patientId: string | null): string => {
+    const patient = patientId ? patients.find(p => p.id === patientId) : undefined;
 
-    const clinicalData = buildClinicalData(formState);
-    if (!clinicalData.trim()) {
-      setGenerationError("Le formulaire est vide.");
-      setIsGenerating(false);
-      return;
+    const getPatientPronouns = (g: string) => {
+        if (g === 'Masculin') return { subject: 'le patient', subjectCap: 'Le patient', he: 'il', heCap: 'Il', him: 'lui', his: 'son/sa/ses', e: '' };
+        if (g === 'Féminin') return { subject: 'la patiente', subjectCap: 'La patiente', he: 'elle', heCap: 'Elle', him: 'lui', his: 'son/sa/ses', e: 'e' };
+        return { subject: 'le/la patient(e)', subjectCap: 'Le/la patient(e)', he: 'il/elle', heCap: 'Il/Elle', him: 'lui', his: 'son/sa/ses', e: '(e)' };
+    };
+
+    const pronouns = getPatientPronouns(state.gender);
+
+    const formatList = (items: string[], lastSeparator = 'et'): string => {
+        if (!items || items.length === 0) return '';
+        const filteredItems = items.filter(Boolean);
+        if (filteredItems.length === 0) return '';
+        if (filteredItems.length === 1) return filteredItems[0];
+        if (filteredItems.length === 2) return `${filteredItems[0]} ${lastSeparator} ${filteredItems[1]}`;
+        return `${filteredItems.slice(0, -1).join(', ')}, ${lastSeparator} ${filteredItems.slice(-1)}`;
+    };
+
+    const paragraphs: string[] = [];
+
+    // --- PARAGRAPH 1: General Context & State ---
+    let introPara = '';
+    if (state.heure) introPara += `Vers ${state.heure}, `;
+    
+    introPara += `${pronouns.subjectCap}`;
+    
+    if(patient?.diagnosis) introPara += `, connu${pronouns.e} pour ${patient.diagnosis},`;
+
+    if (state.etatEveil) {
+        introPara += ` est trouvé${pronouns.e} ${state.etatEveil.toLowerCase()}. `;
+    } else {
+        introPara += ` est évalué${pronouns.e}. `;
     }
 
-    const prompt = `RÔLE : Tu es un infirmier ou une infirmière rédigeant une note d'évolution pour le dossier d'un patient, conformément aux standards du système de santé québécois.
+    const secondaryIntroParts: string[] = [];
+    if (state.orientation.length > 0) {
+        if (state.orientation.length === 3) {
+            secondaryIntroParts.push(`${pronouns.heCap} est orienté${pronouns.e} dans les trois sphères`);
+        } else {
+            secondaryIntroParts.push(`${pronouns.heCap} est orienté${pronouns.e} au niveau ${formatList(state.orientation.map(o => o.toLowerCase()))}`);
+        }
+    }
+     if (state.signesNeuro === 'Pupilles isocores et réactives') {
+        secondaryIntroParts.push(`ses pupilles sont isocores et réactives`);
+    } else if (state.signesNeuro && state.signesNeuro !== 'Voir feuille spéciale') {
+        secondaryIntroParts.push(`au niveau neurologique, on note ${state.signesNeuro.toLowerCase()}`);
+    }
+
+    if (state.position.length > 0) {
+        secondaryIntroParts.push(`${pronouns.he} est positionné${pronouns.e} en ${formatList(state.position.map(p => p.toLowerCase()))}`);
+    }
+    
+    if (secondaryIntroParts.length > 0) {
+        let firstPart = secondaryIntroParts.shift()!;
+        if (firstPart) {
+            firstPart = firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
+            introPara += [firstPart, ...secondaryIntroParts].join(', ') + '.';
+        }
+    }
+    
+    paragraphs.push(introPara.trim());
+
+    // --- PARAGRAPH 2: Systems Assessment ---
+    const systemsParaParts: string[] = [];
+    if (state.signesVitaux && state.signesVitaux !== 'Voir feuille spéciale') {
+        systemsParaParts.push(`Les signes vitaux sont ${state.signesVitaux.toLowerCase()}.`);
+    }
+    
+    const systemDescriptions: string[] = [];
+    // Respiratoire
+    if (state.respiratoire.length > 0 || state.respiratoire_medicament || state.respiratoire_interventions.length > 0) {
+        let details: string[] = [];
+        if (state.respiratoire.length > 0) {
+            let respItems = state.respiratoire.map(item => {
+                if (item === 'Utilisation d’O₂' && state.respiratoire_o2_litres) {
+                    return `une oxygénothérapie à ${state.respiratoire_o2_litres} L/min via lunette nasale`;
+                }
+                return item.toLowerCase();
+            });
+            details.push(formatList(respItems));
+        }
+        if (state.respiratoire_medicament) details.push(`administration de ${state.respiratoire_medicament}`);
+        if (state.respiratoire_interventions.length > 0) details.push(`interventions appliquées: ${formatList(state.respiratoire_interventions.map(i => i.toLowerCase()))}`);
+        systemDescriptions.push(`Sur le plan respiratoire, ${pronouns.subject} présente ${details.join('; ')}`);
+    }
+
+    // Digestif
+    if (state.digestif.length > 0 || state.digestif_medicament || state.digestif_interventions.length > 0) {
+        let details: string[] = [];
+        if (state.digestif.length > 0) details.push(formatList(state.digestif.map(d => d.toLowerCase())));
+        if (state.digestif_medicament) details.push(`administration de ${state.digestif_medicament}`);
+        if (state.digestif_interventions.length > 0) details.push(`interventions: ${formatList(state.digestif_interventions.map(i => i.toLowerCase()))}`);
+        systemDescriptions.push(`Le système digestif est marqué par ${details.join('; ')}`);
+    }
+
+    // Urinaire
+     if (state.urinaire.length > 0 || state.urinaire_medicament || state.urinaire_interventions.length > 0) {
+        let details: string[] = [];
+        if (state.urinaire.length > 0) details.push(formatList(state.urinaire.map(u => u.toLowerCase())));
+        if (state.urinaire_medicament) details.push(`administration de ${state.urinaire_medicament}`);
+        if (state.urinaire_interventions.length > 0) details.push(`interventions: ${formatList(state.urinaire_interventions.map(i => i.toLowerCase()))}`);
+        systemDescriptions.push(`Au niveau urinaire, on note: ${details.join('; ')}`);
+    }
+    
+    // Tégumentaire
+    if (state.tegumentaire.length > 0 || state.tegumentaire_medicament || state.tegumentaire_interventions.length > 0) {
+        let details: string[] = [];
+        if (state.tegumentaire.length > 0) details.push(formatList(state.tegumentaire.map(t => t.toLowerCase())));
+        if (state.tegumentaire_medicament) details.push(`administration de ${state.tegumentaire_medicament}`);
+        if (state.tegumentaire_interventions.length > 0) details.push(`interventions: ${formatList(state.tegumentaire_interventions.map(i => i.toLowerCase()))}`);
+        systemDescriptions.push(`L'état tégumentaire révèle ${details.join('; ')}`);
+    }
+
+    if (systemDescriptions.length > 0) {
+        systemsParaParts.push(systemDescriptions.join('. ') + '.');
+    }
+    if (systemsParaParts.length > 0) {
+        paragraphs.push(systemsParaParts.join(' '));
+    }
+
+
+    // --- PARAGRAPH 3: Pain (PQRSTU) ---
+    const { p, q, r, s, t, u, site, medicament: painMedicament, interventionsNonPharma } = state.douleur;
+    const isPainAssessed = s || p.length > 0 || q.length > 0 || r.length > 0 || site.trim() !== '';
+    if (isPainAssessed) {
+        let painPara = '';
+        if (s === '0 - Aucune douleur') {
+            painPara = `${pronouns.subjectCap} nie toute douleur.`;
+        } else {
+            const severity = s ? s.replace(/^\d+-\d+\s*-\s*/, '').toLowerCase() : 'non évaluée';
+            painPara = `${pronouns.subjectCap} rapporte une douleur d'intensité ${severity}`;
+
+            const locationParts: string[] = [];
+            if(r.length > 0) locationParts.push(...r.map(i => i.toLowerCase()));
+            if(site) locationParts.push(`localisée au ${site}`);
+            if(locationParts.length > 0) painPara += `, ${formatList(locationParts, 'et')}`;
+            
+            if(q.length > 0) painPara += `, de type ${formatList(q.map(i => i.toLowerCase()))}`;
+
+            painPara += '.';
+
+            const detailsParts: string[] = [];
+            if (t.length > 0) detailsParts.push(`la douleur est ${formatList(t.map(i => i.toLowerCase()))}`);
+            if (p.length > 0) detailsParts.push(`elle est provoquée/aggravée par ${formatList(p.map(i => i.toLowerCase()))}`);
+            if (detailsParts.length > 0) painPara += ` ${pronouns.heCap} précise que ${formatList(detailsParts)}.`;
+
+            if (u.length > 0) {
+                painPara += ` La douleur a un impact sur ${formatList(u.map(i => i.replace('Impact sur l\'', 'l\'').toLowerCase()))}.`;
+            }
+        }
+        
+        const painInterventions: string[] = [];
+        if (painMedicament) painInterventions.push(`administration de ${painMedicament}`);
+        if (interventionsNonPharma.length > 0) painInterventions.push(...interventionsNonPharma.map(i => i.toLowerCase()));
+        
+        if (painInterventions.length > 0) {
+            painPara += ` Pour la soulager, les interventions suivantes ont été appliquées: ${formatList(painInterventions)}.`;
+        }
+        paragraphs.push(painPara);
+    }
+
+
+    // --- PARAGRAPH 4: Admission, Devices & Particularities ---
+    const lastParaParts: string[] = [];
+    if (isAdmissionSectionFilled(state)) {
+        const admissionDetails = [];
+        if (state.autonomie) admissionDetails.push(`son autonomie est de '${state.autonomie.toLowerCase()}'`);
+        
+        if (state.accesVeineux) {
+            let accesVeineuxText = `un accès veineux`;
+            if (state.accesVeineux_gauge) accesVeineuxText += ` (calibre ${state.accesVeineux_gauge})`;
+            if (state.accesVeineux_site) accesVeineuxText += ` au ${state.accesVeineux_site}`;
+            admissionDetails.push(accesVeineuxText);
+        }
+        if (state.piccLine) {
+            let piccLineText = `un PICC line`;
+            if (state.piccLine_site) piccLineText += ` au ${state.piccLine_site}`;
+            admissionDetails.push(piccLineText);
+        }
+        if (state.drains.length > 0) admissionDetails.push(`des drains (${formatList(state.drains)})`);
+        if (state.sondes.length > 0) admissionDetails.push(`des sondes (${formatList(state.sondes)})`);
+
+        if (admissionDetails.length > 0) {
+            lastParaParts.push(`${pronouns.subjectCap} est porteur de ${formatList(admissionDetails)}.`);
+        }
+    }
+    
+    const otherObservations: string[] = [];
+    if (state.geriatrie.length > 0) {
+        otherObservations.push(`observations gériatriques notables: ${formatList(state.geriatrie.map(g => g.toLowerCase()))}`);
+    }
+    if (state.finDeVie.length > 0) {
+        let finDeVieDetails = state.finDeVie.filter(s => s !== 'Autre (à préciser)');
+        if (state.finDeVie.includes('Autre (à préciser)') && state.finDeVie_other.trim()) {
+            finDeVieDetails.push(state.finDeVie_other.trim());
+        }
+        otherObservations.push(`des signes de fin de vie ont été observés, notamment: ${formatList(finDeVieDetails.map(d => d.toLowerCase()))}`);
+    }
+    if (state.observations.length > 0) {
+        otherObservations.push(...state.observations);
+    }
+    if (state.visites) {
+        otherObservations.push(`${pronouns.he} a reçu la visite de ${state.visites.replace('Visite de ', '').toLowerCase()}`);
+    }
+    if (otherObservations.length > 0) {
+       lastParaParts.push(otherObservations.join('. ') + '.');
+    }
+
+    if (state.particularites.trim()) {
+        lastParaParts.push(`Événements notables: ${state.particularites.trim()}`);
+    }
+
+    if (lastParaParts.length > 0) {
+        paragraphs.push(lastParaParts.join(' '));
+    }
+    
+    const finalNote = paragraphs
+        .map(p => p.trim().replace(/\s\s+/g, ' ').replace(/\s+\./g, '.').replace(/\s+,/g, ','))
+        .filter(Boolean)
+        .join('\n\n');
+
+    return finalNote;
+  }, [patients]);
+
+
+  const processOfflineQueue = useCallback(async () => {
+    const savedQueueJSON = localStorage.getItem('offlineQueue');
+    if (!savedQueueJSON) return;
+
+    let queue;
+    try {
+        queue = JSON.parse(savedQueueJSON);
+        if (!Array.isArray(queue) || queue.length === 0) {
+            localStorage.removeItem('offlineQueue');
+            return;
+        }
+    } catch (e) {
+        console.error("Failed to parse offline queue, clearing it.", e);
+        localStorage.removeItem('offlineQueue');
+        return;
+    }
+
+    setIsProcessingQueue(true);
+    setProcessingMessage(`Mise à jour de ${queue.length} note(s) hors ligne avec l'IA...`);
+
+    const successfullyProcessedIndices: number[] = [];
+
+    for (const [index, request] of queue.entries()) {
+        try {
+            const { formState: requestFormState, selectedPatientId: requestPatientId, patientName, timestamp } = request;
+            const clinicalData = buildClinicalData(requestFormState, requestPatientId);
+            
+            if (!clinicalData.trim()) {
+                successfullyProcessedIndices.push(index); // Mark empty notes as "processed" to remove them
+                continue;
+            }
+
+            const prompt = `RÔLE : Tu es un infirmier ou une infirmière rédigeant une note d'évolution pour le dossier d'un patient, conformément aux standards du système de santé québécois.
 TÂCHE : Rédige une note narrative professionnelle, fluide et concise en français. La note doit intégrer toutes les données cliniques fournies dans un ou deux paragraphes cohérents.
 IMPORTANT :
 - Ne commence PAS la note par "Note d'évolution :".
@@ -501,47 +830,208 @@ ${clinicalData}
 
 Réponds IMPÉRATIVEMENT au format JSON en respectant le schéma fourni.`;
 
-    try {
-      // @ts-ignore
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: { note: { type: Type.STRING, description: "La note d'évolution infirmière narrative et complète, correctement accordée en genre." } },
-                required: ['note']
-            }
-        }
-      });
-      
-      const jsonString = response.text.trim();
-      const parsedResponse = JSON.parse(jsonString);
-      const generatedNoteContent = parsedResponse.note || "La note n'a pas pu être générée.";
-      setAiNote(generatedNoteContent);
+            // @ts-ignore
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: { note: { type: Type.STRING, description: "La note d'évolution infirmière narrative et complète, correctement accordée en genre." } },
+                        required: ['note']
+                    }
+                }
+            });
 
-      // Save to history for shift report
-      const currentPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
-      setGeneratedNotesHistory(prev => [
-        ...prev,
-        {
-          patientId: selectedPatientId,
-          patientName: currentPatient?.name || 'Patient Inconnu',
-          noteContent: generatedNoteContent,
-          timestamp: Date.now(),
-        }
-      ]);
-      setEditableFullShiftNotesContentState(null); // Reset full shift notes editing on new AI note generation
+            const jsonString = response.text.trim();
+            const parsedResponse = JSON.parse(jsonString);
+            const generatedNoteContent = parsedResponse.note || "La note n'a pas pu être générée.";
+            
+            setGeneratedNotesHistory(prev =>
+              prev.map(record =>
+                record.timestamp === timestamp // timestamp comes from the queue item
+                  ? {
+                      ...record,
+                      noteContent: generatedNoteContent,
+                      isOffline: false, // Flip the flag
+                    }
+                  : record
+              ).sort((a, b) => a.timestamp - b.timestamp) // re-sort just in case
+            );
 
-    } catch (error) {
-      console.error("Erreur lors de la génération de la note :", error);
-      setGenerationError("Une erreur est survenue. L'IA a peut-être renvoyé une réponse inattendue. Veuillez réessayer.");
-    } finally {
-      setIsGenerating(false);
+            successfullyProcessedIndices.push(index);
+            
+        } catch (error) {
+            console.error(`Erreur lors du traitement de la note hors ligne #${index + 1}:`, error);
+        }
     }
-  }, [formState, isFormEmpty, selectedPatientId, patients]);
+
+    const remainingQueue = queue.filter((_: any, index: number) => !successfullyProcessedIndices.includes(index));
+
+    if (remainingQueue.length === 0) {
+        localStorage.removeItem('offlineQueue');
+        setProcessingMessage('Toutes les notes hors ligne ont été mises à jour avec succès !');
+    } else {
+        localStorage.setItem('offlineQueue', JSON.stringify(remainingQueue));
+        const failedCount = remainingQueue.length;
+        const successCount = successfullyProcessedIndices.length;
+        setProcessingMessage(`${successCount} note(s) mise(s) à jour. ${failedCount} note(s) n'ont pas pu être traitée(s) et seront réessayées plus tard.`);
+    }
+
+    setTimeout(() => {
+        setIsProcessingQueue(false);
+        setProcessingMessage(null);
+    } , 5000);
+
+  }, [buildClinicalData, patients]);
+
+  useEffect(() => {
+    if (effectiveIsOnline) {
+      processOfflineQueue();
+    }
+  }, [effectiveIsOnline, processOfflineQueue]);
+
+
+  const handleGenerateNote = useCallback(async () => {
+    if (isFormEmpty) return;
+    setIsGenerating(true);
+    setGenerationError(null);
+    setAiNote('');
+
+    const timestampToUpdate = noteToRegenerate ? noteToRegenerate.timestamp : null;
+
+    if (effectiveIsOnline || !settings.isOfflineQueueEnabled) { // Generate if online OR offline queueing is disabled
+        const clinicalData = buildClinicalData(formState, selectedPatientId);
+        if (!clinicalData.trim()) {
+          setGenerationError("Le formulaire est vide.");
+          setIsGenerating(false);
+          return;
+        }
+
+        const prompt = `RÔLE : Tu es un infirmier ou une infirmière rédigeant une note d'évolution pour le dossier d'un patient, conformément aux standards du système de santé québécois.
+TÂCHE : Rédige une note narrative professionnelle, fluide et concise en français. La note doit intégrer toutes les données cliniques fournies dans un ou deux paragraphes cohérents.
+IMPORTANT :
+- Ne commence PAS la note par "Note d'évolution :".
+- N'inclus PAS la date dans le corps de la note. L'heure peut être incluse si spécifiée dans les données.
+- Accorde IMPÉRATIVEMENT le genre de la note (pronoms, adjectifs) en fonction du "Genre du patient" spécifié. 'Masculin' -> "le patient", "il". 'Féminin' -> "la patiente", "elle".
+
+DONNÉES CLINIQUES :
+${clinicalData}
+
+Réponds IMPÉRATIVEMENT au format JSON en respectant le schéma fourni.`;
+
+        try {
+          // @ts-ignore
+          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: { note: { type: Type.STRING, description: "La note d'évolution infirmière narrative et complète, correctement accordée en genre." } },
+                    required: ['note']
+                }
+            }
+          });
+          
+          const jsonString = response.text.trim();
+          const parsedResponse = JSON.parse(jsonString);
+          const generatedNoteContent = parsedResponse.note || "La note n'a pas pu être générée.";
+          setAiNote(generatedNoteContent);
+          
+          const currentPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
+          
+          if (timestampToUpdate) {
+            // Update existing note
+            setGeneratedNotesHistory(prev =>
+              prev.map(note =>
+                note.timestamp === timestampToUpdate
+                  ? {
+                      ...note,
+                      noteContent: generatedNoteContent,
+                      formState: formState, // Update formState as well
+                      patientId: selectedPatientId, // Update patient if changed
+                      patientName: currentPatient?.name || 'Non identifié',
+                    }
+                  : note
+              )
+            );
+            setNoteToRegenerate(null); // Exit regeneration mode
+          } else {
+             // Save to history for shift report
+             setGeneratedNotesHistory(prev => [
+                ...prev,
+                {
+                  patientId: selectedPatientId,
+                  patientName: currentPatient?.name || 'Non identifié',
+                  noteContent: generatedNoteContent,
+                  timestamp: Date.now(),
+                  formState: formState, // Save form state with note
+                }
+             ]);
+          }
+
+        } catch (error) {
+          console.error("Erreur lors de la génération de la note :", error);
+          setGenerationError("Une erreur est survenue. L'IA a peut-être renvoyé une réponse inattendue. Veuillez réessayer.");
+        } finally {
+          setIsGenerating(false);
+        }
+    } else {
+        // --- OFFLINE LOGIC ---
+        try {
+            const narrativeNoteContent = generateNarrativeOfflineNote(formState, selectedPatientId);
+            setAiNote(narrativeNoteContent);
+
+            const currentPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
+            const timestamp = Date.now();
+
+            // Add to history immediately with an 'isOffline' flag
+            setGeneratedNotesHistory(prev => [
+                ...prev,
+                {
+                  patientId: selectedPatientId,
+                  patientName: currentPatient?.name || 'Non identifié',
+                  noteContent: narrativeNoteContent,
+                  timestamp: timestamp,
+                  formState: formState,
+                  isOffline: true, // New flag
+                }
+            ]);
+
+            const savedQueueJSON = localStorage.getItem('offlineQueue');
+            const queue = savedQueueJSON ? JSON.parse(savedQueueJSON) : [];
+            
+            const offlineRequest = {
+                formState,
+                selectedPatientId,
+                patientName: currentPatient?.name || 'Non identifié',
+                timestamp: timestamp
+            };
+
+            queue.push(offlineRequest);
+            localStorage.setItem('offlineQueue', JSON.stringify(queue));
+
+            // Reset form for next entry but keep patient and context.
+            const { quart, gender } = formState;
+            setFormState({
+                ...initialFormState,
+                quart,
+                gender,
+            });
+
+        } catch (error) {
+            console.error("Erreur lors de la sauvegarde hors ligne :", error);
+            setGenerationError("Une erreur est survenue lors de la sauvegarde de la note pour une utilisation hors ligne.");
+        } finally {
+            setIsGenerating(false);
+        }
+    }
+  }, [formState, isFormEmpty, selectedPatientId, patients, effectiveIsOnline, initialFormState, buildClinicalData, noteToRegenerate, settings.isOfflineQueueEnabled, generateNarrativeOfflineNote]);
   
   const handleGenerateAssistantResponse = useCallback(async () => {
     if (!clinicalQuestion.trim()) return;
@@ -600,10 +1090,11 @@ RÉPONSE:`;
     for (const patientId in notesByPatient) {
       const patientNotes = notesByPatient[patientId];
       const patient = patients.find(p => p.id === patientId);
-      const patientName = patient?.name || patientNotes[0].patientName || 'Patient Inconnu';
+      const patientName = patient?.name || patientNotes[0].patientName || 'Non identifié';
       const room = patient?.room ? ` (Ch. ${patient.room})` : '';
 
       clinicalDataForShiftReport += `--- Patient: ${patientName}${room} ---\n`;
+      // FIX: Corrected forEach arguments. The first argument is the item, the second is the index.
       patientNotes.forEach((note, index) => {
         const time = new Date(note.timestamp).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
         clinicalDataForShiftReport += `Note ${index + 1} (${time}): ${note.noteContent}\n`;
@@ -646,29 +1137,8 @@ RÉPONSE (en format Markdown) :`;
     setGeneratedNotesHistory([]);
     setShiftReportOutput('');
     setShiftReportError(null);
-    setEditableFullShiftNotesContentState(null); // Clear edited full shift notes content
   }, []);
 
-  const handleAccessSubmit = (code: string) => {
-    if (code === accessCode) {
-      setIsAuthenticated(true);
-      setAccessError(null);
-    } else {
-      setAccessError("Code d'accès incorrect. Veuillez réessayer.");
-    }
-  };
-
-  const handleChangePassword = ({ currentCode, newCode }: { currentCode: string, newCode: string }): { success: boolean, message: string } => {
-    if (currentCode !== accessCode) return { success: false, message: "Le code d'accès actuel est incorrect." };
-    if (!newCode || newCode.length < 4) return { success: false, message: "Le nouveau code doit contenir au moins 4 caractères." };
-    setAccessCode(newCode);
-    localStorage.setItem('APP_ACCESS_CODE', newCode);
-    return { success: true, message: "Code d'accès mis à jour avec succès !" };
-  };
-
-  if (!isAuthenticated) {
-    return <AccessCodeScreen onAccessGranted={handleAccessSubmit} error={accessError} />;
-  }
   
   const quartOptions: Option[] = [
     { value: 'Jour', label: 'Jour' },
@@ -693,13 +1163,21 @@ RÉPONSE (en format Markdown) :`;
   const sectionsAfterDouleur = sectionsData.filter(sec => 
     ['finDeVie', 'observations', 'visites'].includes(sec.id)
   );
+  
+  const selectedPatient = useMemo(() => patients.find(p => p.id === selectedPatientId) || null, [patients, selectedPatientId]);
+
+  if (!accessGranted) {
+    return <AccessCodeScreen onAccessGranted={handleAccessGranted} error={authError} isSetupMode={isSetupMode} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex flex-col">
       <Header 
-        onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
+        isOnline={effectiveIsOnline}
+        forceOffline={forceOffline}
+        onToggleForceOffline={handleToggleForceOffline}
       />
       <main className="flex-grow container mx-auto p-4 lg:p-8">
         {/* Top Section: Patient Manager and Shift Report */}
@@ -709,6 +1187,7 @@ RÉPONSE (en format Markdown) :`;
                 selectedPatientId={selectedPatientId}
                 onSelectPatient={setSelectedPatientId}
                 onManagePatients={() => setIsPatientModalOpen(true)}
+                selectedPatient={selectedPatient}
             />
             <ShiftReportGenerator 
                 generatedNotesHistory={generatedNotesHistory}
@@ -758,7 +1237,7 @@ RÉPONSE (en format Markdown) :`;
             <AdmissionSection
                 isOpen={openSectionId === 'admission'}
                 onToggle={() => handleSectionToggle('admission')}
-                isFilled={isAdmissionSectionFilled}
+                isFilled={isAdmissionSectionFilled(formState)}
                 state={formState}
                 onChange={handleAdmissionChange}
             />
@@ -879,7 +1358,7 @@ RÉPONSE (en format Markdown) :`;
                     onToggle={() => handleRightSectionToggle('assistant')}
                     isFilled={assistantResponse.trim() !== '' || clinicalQuestion.trim() !== ''}
                 >
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Obtenez des réponses rapides à vos questions cliniques, adaptées au contexte québécois.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Obtenez des réponses rapides à vos questions cliniques, adaptées au contexte québécois. Utilisez cet outil pour des informations générales, des explications de concepts ou des protocoles, pas pour des données spécifiques aux patients.</p>
                     <ClinicalAssistant
                         question={clinicalQuestion}
                         onQuestionChange={setClinicalQuestion}
@@ -913,19 +1392,21 @@ RÉPONSE (en format Markdown) :`;
                 onReset={resetForm}
                 settings={settings}
                 setSettings={setSettings}
-                // New props for full shift notes
                 patients={patients}
                 generatedNotesHistory={generatedNotesHistory}
                 onUpdateNoteInHistory={handleUpdateNoteInHistory}
-                editableFullShiftNotesContentState={editableFullShiftNotesContentState}
-                setEditableFullShiftNotesContentState={setEditableFullShiftNotesContentState}
+                onDeleteNoteFromHistory={handleDeleteNoteFromHistory}
+                onRecallNote={handleRecallNote}
                 theme={theme}
+                isOnline={effectiveIsOnline}
+                isProcessingQueue={isProcessingQueue}
+                processingMessage={processingMessage}
+                noteToRegenerate={noteToRegenerate}
             />
           </div>
         </div>
       </main>
       <Footer />
-       {isChangePasswordModalOpen && <ChangePasswordModal onClose={() => setIsChangePasswordModalOpen(false)} onSubmit={handleChangePassword} />}
        {isPatientModalOpen && (
             <PatientModal
                 isOpen={isPatientModalOpen}

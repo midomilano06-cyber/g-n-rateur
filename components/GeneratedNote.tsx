@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import jsPDF from 'jspdf';
-import type { LayoutSettings, GeneratedNoteRecord, Patient } from '../types';
+import type { LayoutSettings, GeneratedNoteRecord, Patient, FormState } from '../types';
 import { defaultLayoutSettings, fontOptions } from '../constants';
 import CollapsibleSection from './CollapsibleSection';
 import ZplGenerator from './ZplGenerator'; // New import for the dedicated ZPL generator
+import ShiftJournal from './ShiftJournal'; // Import the new ShiftJournal component
 
 const CopyIcon: React.FC<{className?: string}> = ({ className }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -37,7 +39,7 @@ const SparkleIcon: React.FC<{className?: string}> = ({ className }) => (
 
 const PhotoIcon: React.FC<{className?: string}> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 017.5 0z" />
     </svg>
 );
 
@@ -66,6 +68,18 @@ const XMarkIcon: React.FC<{ className?: string }> = ({ className }) => (
     </svg>
 );
 
+const SaveIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+    </svg>
+);
+
+const PowerIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5.636 5.636a9 9 0 1012.728 0M12 2v10" />
+    </svg>
+);
+
 
 interface GeneratedNoteProps {
   value: string;
@@ -77,15 +91,16 @@ interface GeneratedNoteProps {
   onReset: () => void;
   settings: LayoutSettings;
   setSettings: React.Dispatch<React.SetStateAction<LayoutSettings>>;
-  // New props for full shift notes
   patients: Patient[];
   generatedNotesHistory: GeneratedNoteRecord[];
   onUpdateNoteInHistory: (patientId: string | null, timestamp: number, newContent: string) => void;
-  // FIX: Add theme prop
+  onDeleteNoteFromHistory: (timestamp: number) => void;
+  onRecallNote: (record: GeneratedNoteRecord) => void;
   theme: 'light' | 'dark';
-  // New props for editable full shift notes
-  editableFullShiftNotesContentState: string | null;
-  setEditableFullShiftNotesContentState: React.Dispatch<React.SetStateAction<string | null>>;
+  isOnline: boolean;
+  isProcessingQueue: boolean;
+  processingMessage: string | null;
+  noteToRegenerate: GeneratedNoteRecord | null;
 }
 
 const GeneratedNote: React.FC<GeneratedNoteProps> = ({ 
@@ -100,14 +115,18 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
     setSettings,
     patients, 
     generatedNotesHistory, 
-    onUpdateNoteInHistory, 
-    // FIX: Destructure theme prop
+    onUpdateNoteInHistory,
+    onDeleteNoteFromHistory,
+    onRecallNote,
     theme,
-    editableFullShiftNotesContentState,
-    setEditableFullShiftNotesContentState,
+    isOnline,
+    isProcessingQueue,
+    processingMessage,
+    noteToRegenerate,
 }) => {
   const [isCopied, setIsCopied] = useState(false);
   const [showAdjustments, setShowAdjustments] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ startX: number, startY: number, initialLeft: number, initialTop: number } | null>(null);
@@ -122,58 +141,64 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
   // Editing state for notes (both single AI and full shift)
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [editableNoteContent, setEditableNoteContent] = useState(value);
+  // New state to store user edits to the combined shift journal content
+  const [editedShiftJournalContent, setEditedShiftJournalContent] = useState<string | null>(null);
 
-  // Display mode for the preview area: 'singleNote' or 'fullShiftNotes'
-  const [displayMode, setDisplayMode] = useState<'singleNote' | 'fullShiftNotes'>('singleNote');
+  // Display mode for the preview area: 'singleNote' or 'shiftJournal'
+  const [displayMode, setDisplayMode] = useState<'singleNote' | 'shiftJournal'>('singleNote');
 
-  const formatTimestamp = useCallback((timestamp: number, includeDate: boolean = false): string => {
-    const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
-    if (includeDate) {
-        options.year = 'numeric';
-        options.month = '2-digit';
-        options.day = '2-digit';
-    }
-    return new Date(timestamp).toLocaleTimeString('fr-CA', options);
-  }, []);
+  // A combined state to disable UI elements consistently
+  const isUiDisabled = isGenerating || isProcessingQueue;
 
-  // FIX: Moved fullShiftNotesContent definition before its usage.
   const fullShiftNotesContent = useMemo(() => {
     if (generatedNotesHistory.length === 0) {
         return "Aucune note n'a été générée pour ce quart de travail.";
     }
 
-    let concatenatedText = "";
-    // Sort history by timestamp to ensure chronological order regardless of patient
+    let concatenatedText = ""; // Removed "NOTES COMPLÈTES DU QUART"
     const sortedHistory = [...generatedNotesHistory].sort((a, b) => a.timestamp - b.timestamp);
+    const notesByPatient: { [key: string]: GeneratedNoteRecord[] } = {};
 
     sortedHistory.forEach(note => {
-        // No patient header, just timestamp and content
-        concatenatedText += `${formatTimestamp(note.timestamp, true)}: ${note.noteContent}\n`;
+        const patientKey = note.patientId || 'unknown';
+        if (!notesByPatient[patientKey]) {
+            notesByPatient[patientKey] = [];
+        }
+        notesByPatient[patientKey].push(note);
     });
+
+    Object.keys(notesByPatient).forEach(patientKey => {
+        const notes = notesByPatient[patientKey];
+        const patient = patients.find(p => p.id === patientKey);
+        const patientName = patient?.name || notes[0].patientName;
+        const room = patient?.room ? ` (Ch. ${patient.room})` : '';
+        // Changed to display patient name directly without "--- Patient: " prefix
+        concatenatedText += `${patientName}${room}\n`; 
+        notes.forEach(note => {
+            const time = new Date(note.timestamp).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+            concatenatedText += `${time}: ${note.noteContent}\n`;
+        });
+        concatenatedText += "\n";
+    });
+
     return concatenatedText.trim();
-  }, [generatedNotesHistory, formatTimestamp]);
+  }, [generatedNotesHistory, patients]);
 
-  // Sync editable content with prop.value or fullShiftNotesContent/editableFullShiftNotesContentState when not editing
+
+  // Sync editable content with prop.value when not editing in single note mode
   useEffect(() => {
-    if (!isEditingNote) {
-      if (displayMode === 'singleNote') {
-        setEditableNoteContent(value);
-      } else { // 'fullShiftNotes'
-        setEditableNoteContent(editableFullShiftNotesContentState ?? fullShiftNotesContent);
-      }
+    if (!isEditingNote && displayMode === 'singleNote') {
+      setEditableNoteContent(value);
     }
-  }, [value, isEditingNote, displayMode, fullShiftNotesContent, editableFullShiftNotesContentState]);
+  }, [value, isEditingNote, displayMode]);
 
-
-  // FIX: Define currentContentForSingleNoteDisplay
-  const currentContentForSingleNoteDisplay = value;
 
   const currentContentForPreview = useMemo(() => {
-    if (isEditingNote) {
-      return editableNoteContent;
+    if (displayMode === 'shiftJournal') {
+        return isEditingNote ? editableNoteContent : (editedShiftJournalContent || fullShiftNotesContent);
     }
-    return displayMode === 'singleNote' ? currentContentForSingleNoteDisplay : (editableFullShiftNotesContentState ?? fullShiftNotesContent);
-  }, [isEditingNote, editableNoteContent, displayMode, currentContentForSingleNoteDisplay, editableFullShiftNotesContentState, fullShiftNotesContent]);
+    return isEditingNote ? editableNoteContent : value;
+  }, [isEditingNote, editableNoteContent, displayMode, value, editedShiftJournalContent, fullShiftNotesContent]);
 
 
   const noteLines = useMemo(() => {
@@ -229,28 +254,39 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
     doc.setFont(settings.fontFamily, fontStyle);
     doc.setFontSize(settings.fontSize);
 
-    // FIX: Use currentContentForPreview consistent with the rest of the component
-    const contentToPrint = currentContentForPreview === "Aucune note n'a été générée pour ce quart de travail." ? '' : currentContentForPreview; // Prevent placeholder from being printed
-    const splitText = doc.splitTextToSize(contentToPrint, settings.textBlockWidth);
+    const contentToPrint = currentContentForPreview === "Aucune note n'a été générée pour ce quart de travail." ? '' : currentContentForPreview;
     
-    doc.text(splitText, settings.textLeftPosition, settings.textTopPosition, { 
-        lineHeightFactor: settings.lineHeight, 
-        baseline: 'top',
-        charSpace: settings.letterSpacing * PT_TO_CM,
-    });
-    doc.save(`${displayMode === 'singleNote' ? 'note-infirmiere' : 'notes-completes-quart'}_${isA4 ? 'A4' : 'Lettre'}.pdf`);
+    const leftPos = settings.textLeftPosition;
+    const topPos = settings.textTopPosition;
+    const blockWidth = settings.textBlockWidth;
+    const lineHeight = settings.lineHeight;
+    const letterSpacing = settings.letterSpacing * PT_TO_CM;
 
-  }, [displayMode, backgroundImage, settings, currentContentForPreview, PAGE_WIDTH_CM, PAGE_HEIGHT_CM, PT_TO_CM]);
+    const splitText = doc.splitTextToSize(contentToPrint, blockWidth);
+    
+    doc.text(splitText, leftPos, topPos, { 
+        lineHeightFactor: lineHeight, 
+        baseline: 'top',
+        charSpace: letterSpacing,
+    });
+    doc.save(`${displayMode === 'singleNote' ? 'note-infirmiere' : 'journal-de-quart'}_${isA4 ? 'A4' : 'Lettre'}.pdf`);
+
+  }, [backgroundImage, settings, currentContentForPreview, PAGE_WIDTH_CM, PAGE_HEIGHT_CM, PT_TO_CM, displayMode]);
   
   const handlePrint = useCallback(() => {
-    // FIX: Use currentContentForPreview consistent with the rest of the component
-    const contentToPrint = currentContentForPreview === "Aucune note n'a été générée pour ce quart de travail." ? '' : currentContentForPreview; // Prevent placeholder from being printed
+    const contentToPrint = currentContentForPreview === "Aucune note n'a été générée pour ce quart de travail." ? '' : currentContentForPreview;
     const printWindow = window.open('', '_blank');
     if (printWindow) {
+        const leftPos = settings.textLeftPosition;
+        const topPos = settings.textTopPosition;
+        const blockWidth = settings.textBlockWidth;
+        const lineHeight = settings.lineHeight;
+        const letterSpacing = settings.letterSpacing;
+
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>${displayMode === 'singleNote' ? 'Note Infirmière' : 'Notes Complètes du Quart'}</title>
+                    <title>${displayMode === 'singleNote' ? 'Note Infirmière' : 'Journal de Quart'}</title>
                     <style>
                         body { margin: 0; padding: 0; }
                         .print-container {
@@ -275,12 +311,12 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
                             position: absolute;
                             font-family: '${settings.fontFamily}', monospace;
                             font-weight: ${settings.fontWeight};
-                            top: ${settings.textTopPosition}cm;
-                            left: ${settings.textLeftPosition}cm;
-                            width: ${settings.textBlockWidth}cm;
+                            top: ${topPos}cm;
+                            left: ${leftPos}cm;
+                            width: ${blockWidth}cm;
                             font-size: ${settings.fontSize}pt;
-                            line-height: ${settings.lineHeight};
-                            letter-spacing: ${settings.letterSpacing}pt;
+                            line-height: ${lineHeight};
+                            letter-spacing: ${letterSpacing}pt;
                             white-space: pre-wrap;
                             color: #1f2937; 
                         }
@@ -288,7 +324,7 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
                 </head>
                 <body>
                     <div class="print-container">
-                        <div class="note-text">${contentToPrint}</div>
+                        <div class="note-text">${contentToPrint.replace(/\n/g, '<br>')}</div>
                     </div>
                 </body>
             </html>
@@ -299,7 +335,7 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
     } else {
         alert("Impossible d'ouvrir la fenêtre d'impression. Veuillez autoriser les pop-ups.");
     }
-  }, [displayMode, backgroundImage, settings, currentContentForPreview, PAGE_WIDTH_CM, PAGE_HEIGHT_CM]);
+  }, [backgroundImage, settings, currentContentForPreview, PAGE_WIDTH_CM, PAGE_HEIGHT_CM, displayMode]);
   
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -327,12 +363,12 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
     setSettings(defaultLayoutSettings);
   };
   
-  const handleSettingChange = (field: keyof LayoutSettings, value: number | string) => {
+  const handleSettingChange = (field: keyof LayoutSettings, value: number | string | boolean) => {
     setSettings(prev => ({ ...prev, [field]: value }));
   };
   
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!currentContentForPreview || isGenerating || isEditingNote) return; // Allow dragging in both modes
+    if (!currentContentForPreview || isUiDisabled || isEditingNote) return;
     e.preventDefault();
     dragStartRef.current = {
       startX: e.clientX,
@@ -343,7 +379,7 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [settings, currentContentForPreview, isGenerating, isEditingNote]); // Removed displayMode
+  }, [settings, currentContentForPreview, isUiDisabled, isEditingNote]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragStartRef.current || !previewRef.current) return;
@@ -376,26 +412,26 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
   const handleEditNote = () => {
       setIsEditingNote(true);
       if (displayMode === 'singleNote') {
-          setEditableNoteContent(value);
-      } else { // 'fullShiftNotes'
-          setEditableNoteContent(editableFullShiftNotesContentState ?? fullShiftNotesContent);
+        setEditableNoteContent(value);
+      } else { // shiftJournal mode
+        setEditableNoteContent(editedShiftJournalContent || fullShiftNotesContent);
       }
   };
 
   const handleSaveNoteEdit = () => {
       if (displayMode === 'singleNote') {
-          onValueChange(editableNoteContent);
-      } else { // 'fullShiftNotes'
-          setEditableFullShiftNotesContentState(editableNoteContent);
+        onValueChange(editableNoteContent);
+      } else { // shiftJournal mode
+        setEditedShiftJournalContent(editableNoteContent);
       }
       setIsEditingNote(false);
   };
 
   const handleCancelNoteEdit = () => {
       if (displayMode === 'singleNote') {
-          setEditableNoteContent(value);
-      } else { // 'fullShiftNotes'
-          setEditableNoteContent(editableFullShiftNotesContentState ?? fullShiftNotesContent);
+        setEditableNoteContent(value);
+      } else { // shiftJournal mode
+        setEditableNoteContent(editedShiftJournalContent || fullShiftNotesContent); // Reset to last saved or default combined content
       }
       setIsEditingNote(false);
   };
@@ -410,36 +446,34 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
   }, [settings.fontFamily]);
 
 
-  const isDraggable = !isEditingNote && currentContentForPreview.trim() !== '' && !isGenerating;
+  const isDraggable = !isUiDisabled && !isEditingNote && currentContentForPreview.trim() !== '' && !isGenerating;
 
   const isSaveDisabled = useMemo(() => {
     if (displayMode === 'singleNote') {
-        return editableNoteContent === value;
-    } else { // 'fullShiftNotes'
-        const currentContent = editableFullShiftNotesContentState ?? fullShiftNotesContent;
-        return editableNoteContent === currentContent;
+      return editableNoteContent === value;
+    } else { // shiftJournal mode
+      return editableNoteContent === (editedShiftJournalContent || fullShiftNotesContent);
     }
-  }, [displayMode, editableNoteContent, value, editableFullShiftNotesContentState, fullShiftNotesContent]);
-
+  }, [editableNoteContent, value, editedShiftJournalContent, fullShiftNotesContent, displayMode]);
 
   const adjustmentsPanel = (
     <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
         <p className="text-xs text-slate-500 dark:text-slate-400 bg-teal-50 dark:bg-teal-900/30 p-2 rounded-md border border-teal-200 dark:border-teal-800">
-            <b>Astuce :</b> Vous pouvez aussi cliquer et glisser le texte dans l'aperçu pour le positionner.
+            <b>Astuce :</b> Vous pouvez aussi cliquer et glisser le texte dans l'aperçu (note actuelle ou journal de quart) pour le repositionner.
         </p>
         <div className="grid grid-cols-1 gap-y-4 text-sm">
             
             <div>
                 <label htmlFor="textTopPosition" className="block mb-1 text-slate-600 dark:text-slate-400">Position Verticale (cm): <span className="font-mono text-xs">{settings.textTopPosition.toFixed(2)}</span></label>
-                <input type="range" id="textTopPosition" min="0.5" max="27" step="0.05" value={settings.textTopPosition} onChange={e => handleSettingChange('textTopPosition', parseFloat(e.target.value))} className="w-full" disabled={isEditingNote} />
+                <input type="range" id="textTopPosition" min="0.5" max="27" step="0.05" value={settings.textTopPosition} onChange={e => handleSettingChange('textTopPosition', parseFloat(e.target.value))} className="w-full" disabled={isUiDisabled} />
             </div>
             <div>
                 <label htmlFor="textLeftPosition" className="block mb-1 text-slate-600 dark:text-slate-400">Position Horizontale (cm): <span className="font-mono text-xs">{settings.textLeftPosition.toFixed(2)}</span></label>
-                <input type="range" id="textLeftPosition" min="0.5" max="20" step="0.05" value={settings.textLeftPosition} onChange={e => handleSettingChange('textLeftPosition', parseFloat(e.target.value))} className="w-full" disabled={isEditingNote} />
+                <input type="range" id="textLeftPosition" min="0.5" max="20" step="0.05" value={settings.textLeftPosition} onChange={e => handleSettingChange('textLeftPosition', parseFloat(e.target.value))} className="w-full" disabled={isUiDisabled} />
             </div>
             <div>
                 <label htmlFor="textBlockWidth" className="block mb-1 text-slate-600 dark:text-slate-400">Largeur du bloc de texte (cm): <span className="font-mono text-xs">{settings.textBlockWidth.toFixed(2)}</span></label>
-                <input type="range" id="textBlockWidth" min="10" max="20" step="0.05" value={settings.textBlockWidth} onChange={e => handleSettingChange('textBlockWidth', parseFloat(e.target.value))} className="w-full" disabled={isEditingNote} />
+                <input type="range" id="textBlockWidth" min="10" max="20" step="0.05" value={settings.textBlockWidth} onChange={e => handleSettingChange('textBlockWidth', parseFloat(e.target.value))} className="w-full" disabled={isUiDisabled} />
             </div>
 
             <hr className="border-slate-200 dark:border-slate-700 my-2" />
@@ -451,28 +485,53 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
                     value={settings.fontFamily}
                     onChange={(e) => handleSettingChange('fontFamily', e.target.value)}
                     className="w-full p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
-                    disabled={isEditingNote}
+                    disabled={isUiDisabled}
                 >
                     {fontOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
             </div>
             <div>
                 <label htmlFor="fontSize" className="block mb-1 text-slate-600 dark:text-slate-400">Taille de police (pt): <span className="font-mono text-xs">{settings.fontSize.toFixed(1)}</span></label>
-                <input type="range" id="fontSize" min="7" max="14" step="0.5" value={settings.fontSize} onChange={e => handleSettingChange('fontSize', parseFloat(e.target.value))} className="w-full" disabled={isEditingNote} />
+                <input type="range" id="fontSize" min="7" max="14" step="0.5" value={settings.fontSize} onChange={e => handleSettingChange('fontSize', parseFloat(e.target.value))} className="w-full" disabled={isUiDisabled} />
             </div>
             <div>
                 <label htmlFor="fontWeight" className="block mb-1 text-slate-600 dark:text-slate-400">Épaisseur du texte: <span className="font-mono text-xs">{settings.fontWeight === 400 ? 'Normal' : 'Gras'}</span></label>
-                <input type="range" id="fontWeight" min="400" max="700" step="300" value={settings.fontWeight} onChange={e => handleSettingChange('fontWeight', parseFloat(e.target.value))} className="w-full" disabled={isEditingNote} />
+                <input type="range" id="fontWeight" min="400" max="700" step="300" value={settings.fontWeight} onChange={e => handleSettingChange('fontWeight', parseFloat(e.target.value))} className="w-full" disabled={isUiDisabled} />
             </div>
              <div>
                 <label htmlFor="lineHeight" className="block mb-1 text-slate-600 dark:text-slate-400">Hauteur de ligne: <span className="font-mono text-xs">{settings.lineHeight.toFixed(2)}</span></label>
-                <input type="range" id="lineHeight" min="1.5" max="2.5" step="0.01" value={settings.lineHeight} onChange={e => handleSettingChange('lineHeight', parseFloat(e.target.value))} className="w-full" disabled={isEditingNote} />
+                <input type="range" id="lineHeight" min="1.5" max="2.5" step="0.01" value={settings.lineHeight} onChange={e => handleSettingChange('lineHeight', parseFloat(e.target.value))} className="w-full" disabled={isUiDisabled} />
             </div>
              <div>
                 <label htmlFor="letterSpacing" className="block mb-1 text-slate-600 dark:text-slate-400">Espacement lettres (pt): <span className="font-mono text-xs">{settings.letterSpacing.toFixed(2)}</span></label>
-                <input type="range" id="letterSpacing" min="-1" max="5" step="0.05" value={settings.letterSpacing} onChange={e => handleSettingChange('letterSpacing', parseFloat(e.target.value))} className="w-full" disabled={isEditingNote} />
+                <input type="range" id="letterSpacing" min="-1" max="5" step="0.05" value={settings.letterSpacing} onChange={e => handleSettingChange('letterSpacing', parseFloat(e.target.value))} className="w-full" disabled={isUiDisabled} />
             </div>
 
+            <hr className="border-slate-200 dark:border-slate-700 my-2" />
+
+            <div>
+                <h4 className="block mb-2 text-slate-600 dark:text-slate-400 font-medium">Options IA</h4>
+                <label htmlFor="offlineQueueEnabled" className="flex items-center cursor-pointer">
+                    <div className="relative">
+                        <input
+                            type="checkbox"
+                            id="offlineQueueEnabled"
+                            className="sr-only"
+                            checked={settings.isOfflineQueueEnabled}
+                            onChange={(e) => handleSettingChange('isOfflineQueueEnabled', e.target.checked)}
+                            disabled={isUiDisabled}
+                        />
+                        <div className={`block bg-slate-300 dark:bg-slate-600 w-10 h-6 rounded-full ${settings.isOfflineQueueEnabled ? 'bg-teal-500' : ''}`}></div>
+                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition ${settings.isOfflineQueueEnabled ? 'translate-x-full' : ''}`}></div>
+                    </div>
+                    <span className="ml-3 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Activer la file d'attente hors ligne
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Si désactivé, les notes ne seront pas générées hors ligne.
+                        </p>
+                    </span>
+                </label>
+            </div>
         </div>
         <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-600">
             <h4 className="block mb-2 text-slate-600 dark:text-slate-400 font-medium">Image de fond</h4>
@@ -484,11 +543,11 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
                     className="hidden"
                     accept="image/png, image/jpeg"
                 />
-                <button onClick={triggerFileUpload} className="inline-flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500" disabled={isEditingNote}>
+                <button onClick={triggerFileUpload} className="inline-flex items-center gap-2 px-3 py-1.5 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500" disabled={isUiDisabled}>
                     <PhotoIcon className="w-4 h-4" />
                     Changer l'image...
                 </button>
-                <button onClick={resetBackgroundImage} className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="Supprimer l'image de fond" disabled={isEditingNote}>
+                <button onClick={resetBackgroundImage} className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="Supprimer l'image de fond" disabled={isUiDisabled}>
                     <ResetIcon className="w-4 h-4 text-slate-500" />
                 </button>
             </div>
@@ -507,49 +566,60 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
     <>
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md p-6 border border-slate-200 dark:border-slate-700 relative">
         <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-slate-700 dark:text-slate-300">Aperçu de la Note</h2>
+            <h2 className="text-xl font-bold text-slate-700 dark:text-slate-300">Aperçu & Journal de Quart</h2>
             <div className="flex items-center gap-2">
-            <button onClick={onReset} className="p-2 rounded-full hover:bg-slate-100 active:bg-slate-200 dark:hover:bg-slate-700 dark:active:bg-slate-600 transition-colors" title="Réinitialiser le formulaire" disabled={isEditingNote}>
+            <button onClick={onReset} className="p-2 rounded-full hover:bg-slate-100 active:bg-slate-200 dark:hover:bg-slate-700 dark:active:bg-slate-600 transition-colors" title="Réinitialiser le formulaire" disabled={isUiDisabled}>
                     <ResetIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                 </button>
             <button 
                 onClick={onGenerate} 
-                disabled={isGenerating || isFormEmpty || isEditingNote} 
+                disabled={isUiDisabled || isFormEmpty || (settings.isOfflineQueueEnabled && !isOnline && noteToRegenerate)} 
                 className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
             >
-                <SparkleIcon className="w-5 h-5" />
-                {isGenerating ? 'Génération...' : 'Générer la Note'}
+                { isOnline ? <SparkleIcon className="w-5 h-5" /> : <SaveIcon className="w-5 h-5" /> }
+                {isGenerating ? 'Génération...' : (isOnline || !settings.isOfflineQueueEnabled ? 'Générer la Note' : 'Sauvegarder pour plus tard')}
             </button>
             </div>
         </div>
       
-        {error && <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert"><p>{error}</p></div>}
+        {processingMessage && (
+            <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-4" role="status">
+                <p>{processingMessage}</p>
+            </div>
+        )}
+        {error && !processingMessage && <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert"><p>{error}</p></div>}
       
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
                 {/* Display Mode Toggle */}
                 <div className="flex mb-4 bg-slate-100 dark:bg-slate-700 rounded-md p-1">
                     <button
-                        onClick={() => setDisplayMode('singleNote')}
+                        onClick={() => {
+                          setDisplayMode('singleNote');
+                          setIsEditingNote(false); // Exit edit mode when switching
+                        }}
                         className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                             displayMode === 'singleNote'
                                 ? 'bg-teal-600 text-white shadow'
                                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                         }`}
-                        disabled={isEditingNote}
+                        disabled={isUiDisabled}
                     >
-                        Note AI
+                        Note Actuelle
                     </button>
                     <button
-                        onClick={() => setDisplayMode('fullShiftNotes')}
+                        onClick={() => {
+                            setDisplayMode('shiftJournal');
+                            setIsEditingNote(false); // Exit edit mode when switching
+                        }}
                         className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                            displayMode === 'fullShiftNotes'
+                            displayMode === 'shiftJournal'
                                 ? 'bg-teal-600 text-white shadow'
                                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
                         }`}
-                        disabled={isEditingNote}
+                        disabled={isUiDisabled}
                     >
-                        Notes Complètes
+                        Journal du Quart
                         {generatedNotesHistory.length > 0 && (
                             <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-teal-100 bg-teal-500 rounded-full">
                                 {generatedNotesHistory.length}
@@ -558,13 +628,14 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
                     </button>
                 </div>
 
+                {/* Unified Preview Area */}
                 <div ref={previewRef} className="relative w-full border border-slate-300 dark:border-slate-600 rounded-md overflow-hidden bg-white aspect-[8.5/11]">
                     {backgroundImage && (
                         <img src={backgroundImage} alt="Formulaire de note d'évolution" className="absolute inset-0 w-full h-full object-contain select-none" style={{ pointerEvents: 'none' }} />
                     )}
                     
                     {isEditingNote ? (
-                         <textarea
+                        <textarea
                             value={editableNoteContent}
                             onChange={(e) => setEditableNoteContent(e.target.value)}
                             className="absolute text-black w-full h-full p-2 resize-none border-none outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50"
@@ -581,7 +652,7 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
                                 background: 'transparent',
                                 color: 'rgb(31 41 55)', 
                             }}
-                         />
+                        />
                     ) : (
                         <div 
                             onMouseDown={handleMouseDown}
@@ -595,70 +666,66 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
                                 top: `${(settings.textTopPosition / PAGE_HEIGHT_CM) * 100}%`,
                                 left: `${(settings.textLeftPosition / PAGE_WIDTH_CM) * 100}%`,
                                 width: `${(settings.textBlockWidth / PAGE_WIDTH_CM) * 100}%`,
-                                // Ensure text is visible in dark mode
-                                // FIX: Use the theme prop
-                                color: theme === 'dark' ? 'rgb(203 213 225)' : 'rgb(31 41 55)', // Light gray for dark, dark for light
+                                color: theme === 'dark' ? 'rgb(203 213 225)' : 'rgb(31 41 55)',
                             }}
                         >
-                           {isGenerating 
+                        {isGenerating && displayMode === 'singleNote'
                                 ? <div style={{fontSize: '1rem', whiteSpace: 'pre-wrap', color: 'rgb(100 116 139)'}}>Génération en cours, veuillez patienter...</div> 
                                 : noteLines.map((line, index) => (
-                                  <div
-                                      key={index}
-                                      style={{
-                                          fontSize: `${settings.fontSize}pt`,
-                                          lineHeight: settings.lineHeight,
-                                          letterSpacing: `${settings.letterSpacing}pt`,
-                                          whiteSpace: 'pre',
-                                      }}
-                                  >
-                                      {line || '\u00A0'}
-                                  </div>
-                              ))}
+                                <div
+                                    key={index}
+                                    style={{
+                                        fontSize: `${settings.fontSize}pt`,
+                                        lineHeight: settings.lineHeight,
+                                        letterSpacing: `${settings.letterSpacing}pt`,
+                                        whiteSpace: 'pre',
+                                    }}
+                                >
+                                    {line || '\u00A0'}
+                                </div>
+                            ))}
                         </div>
                     )}
                 
-                    {(currentContentForPreview.trim() === '' || currentContentForPreview === "Aucune note n'a été générée pour ce quart de travail.") && !isGenerating && (
+                    {(currentContentForPreview.trim() === '' || currentContentForPreview.includes("Aucune note n'a été générée")) && !isGenerating && !isProcessingQueue && (
                         <div className="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-slate-800/70 backdrop-blur-[2px]">
                             <p className="text-slate-500 dark:text-slate-400 text-center p-4 font-sans text-base bg-slate-100/80 dark:bg-slate-900/80 rounded-lg shadow">
-                                {displayMode === 'singleNote' 
-                                    ? (backgroundImage ? "La note générée par l'IA apparaîtra ici." : "Chargez une image de formulaire via les ajustements, puis remplissez le formulaire pour commencer.")
-                                    : "Aucune note n'a été générée pour ce quart de travail."
-                                }
+                                {backgroundImage ? "La note générée par l'IA apparaîtra ici." : "Chargez une image de formulaire via les ajustements, puis remplissez le formulaire pour commencer."}
                             </p>
                         </div>
                     )}
                 
-                    {((currentContentForPreview.trim() !== '' && currentContentForPreview !== "Aucune note n'a été générée pour ce quart de travail.") ) && !isGenerating && (
+                    {(currentContentForPreview.trim() !== '' && !currentContentForPreview.includes("Aucune note n'a été générée")) && !isGenerating && !isProcessingQueue && (
                     <div className="absolute top-2 right-2 flex gap-1.5">
-                        {!isEditingNote && (
-                            <button onClick={handleEditNote} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Modifier la note">
-                                <PencilIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-                            </button>
-                        )}
-                        {isEditingNote && (
-                            <>
-                                <button 
-                                    onClick={handleSaveNoteEdit} 
-                                    className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" 
-                                    title="Enregistrer les modifications"
-                                    disabled={isSaveDisabled}
-                                >
-                                    <CheckIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        
+                            {!isEditingNote && (
+                                <button onClick={handleEditNote} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Modifier la note">
+                                    <PencilIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                                 </button>
-                                <button onClick={handleCancelNoteEdit} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Annuler les modifications">
-                                    <XMarkIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
-                                </button>
-                            </>
-                        )}
-                        <button onClick={handleCopy} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Copier le texte" disabled={isEditingNote}>
-                        <CopyIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                            )}
+                            {isEditingNote && (
+                                <>
+                                    <button 
+                                        onClick={handleSaveNoteEdit} 
+                                        className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" 
+                                        title="Enregistrer les modifications"
+                                        disabled={isSaveDisabled}
+                                    >
+                                        <CheckIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                    </button>
+                                    <button onClick={handleCancelNoteEdit} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Annuler les modifications">
+                                        <XMarkIcon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                                    </button>
+                                </>
+                            )}
+                        <button onClick={handleCopy} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Copier le texte" disabled={isUiDisabled}>
+                           <CopyIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                         </button>
-                        <button onClick={() => generatePdf('letter')} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Télécharger en PDF (Format Lettre US)" disabled={isEditingNote}>
+                        <button onClick={() => generatePdf('letter')} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Télécharger en PDF (Format Lettre US)" disabled={isUiDisabled}>
                             <DocumentDownloadIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                         </button>
-                        <button onClick={handlePrint} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Imprimer" disabled={isEditingNote}>
-                        <PrintIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                        <button onClick={handlePrint} className="p-2 rounded-md bg-white/80 backdrop-blur-sm dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 transition-colors shadow-md" title="Imprimer" disabled={isUiDisabled}>
+                           <PrintIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                         </button>
                     </div>
                     )}
@@ -679,18 +746,33 @@ const GeneratedNote: React.FC<GeneratedNoteProps> = ({
                     </div>
                     {adjustmentsPanel}
                 </CollapsibleSection>
+
+                 <CollapsibleSection
+                    title="Historique des notes du quart"
+                    isOpen={showHistory}
+                    onToggle={() => setShowHistory(p => !p)}
+                    isFilled={generatedNotesHistory.length > 0}
+                >
+                    <ShiftJournal
+                        history={generatedNotesHistory}
+                        patients={patients}
+                        onUpdateNote={onUpdateNoteInHistory}
+                        onDeleteNote={onDeleteNoteFromHistory}
+                        onRecallNote={onRecallNote}
+                    />
+                </CollapsibleSection>
                 
                 {/* Integrate the new ZplGenerator component here */}
                 <CollapsibleSection
                   title="Générer Étiquette ZPL"
                   isOpen={true} // Always open as per previous behavior, but its internal controls will be disabled.
                   onToggle={() => {}} // No toggle for this section, it's always visible in its slot
-                  isFilled={currentContentForSingleNoteDisplay.trim() !== '' && displayMode === 'singleNote'} // Filled only if there's content and in single note mode
+                  isFilled={value.trim() !== '' && displayMode === 'singleNote'} // Filled only if there's content and in single note mode
                 >
                     <ZplGenerator 
-                        noteContent={currentContentForSingleNoteDisplay}
+                        noteContent={value}
                         theme={theme}
-                        isDisabled={isEditingNote}
+                        isDisabled={isUiDisabled || isEditingNote}
                         zplGeneratorMode={displayMode}
                     />
                 </CollapsibleSection>

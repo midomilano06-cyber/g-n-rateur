@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { scenariosData } from '../constants';
 import type { FormState, Scenario, ScenarioCategory } from '../types';

@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 const StethoscopeIcon: React.FC<{className?: string}> = ({ className }) => (
@@ -5,12 +6,6 @@ const StethoscopeIcon: React.FC<{className?: string}> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6a3 3 0 013-3h0a3 3 0 013 3v13m-6 0h6m-3-3a3 3 0 100-6 3 3 0 000 6z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19V9a2 2 0 012-2h0a2 2 0 012 2v10" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 19V9a2 2 0 00-2-2h0a2 2 0 00-2 2v10" />
-    </svg>
-);
-
-const KeyIcon: React.FC<{className?: string}> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H5v-2H3v-2H1v-4a6 6 0 016-6h4a6 6 0 016 6z" />
     </svg>
 );
 
@@ -27,12 +22,14 @@ const MoonIcon: React.FC<{className?: string}> = ({ className }) => (
 );
 
 interface HeaderProps {
-    onOpenChangePassword: () => void;
     theme: 'light' | 'dark';
     onToggleTheme: () => void;
+    isOnline: boolean;
+    forceOffline: boolean;
+    onToggleForceOffline: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onOpenChangePassword, theme, onToggleTheme }) => {
+const Header: React.FC<HeaderProps> = ({ theme, onToggleTheme, isOnline, forceOffline, onToggleForceOffline }) => {
   return (
     <header className="bg-white dark:bg-slate-800 shadow-md">
       <div className="container mx-auto px-4 lg:px-8 py-4 flex items-center justify-between gap-4">
@@ -46,6 +43,37 @@ const Header: React.FC<HeaderProps> = ({ onOpenChangePassword, theme, onToggleTh
             </div>
         </div>
         <div className="flex items-center gap-2">
+            <div 
+                className="flex items-center gap-2 p-2 rounded-full"
+                title={isOnline ? "Connecté" : "Hors ligne"}
+            >
+                <span className={`h-3 w-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-slate-400'}`}></span>
+                <span className={`hidden sm:inline text-sm font-medium ${isOnline ? 'text-green-600 dark:text-green-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {isOnline ? 'En ligne' : 'Hors ligne'}
+                </span>
+            </div>
+
+            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+            <label htmlFor="force-offline-toggle" className="flex items-center cursor-pointer" title="Forcer le mode hors ligne pour tester">
+                <div className="relative">
+                    <input
+                        type="checkbox"
+                        id="force-offline-toggle"
+                        className="sr-only"
+                        checked={forceOffline}
+                        onChange={onToggleForceOffline}
+                    />
+                    <div className={`block bg-slate-300 dark:bg-slate-600 w-10 h-6 rounded-full transition-colors ${forceOffline ? 'bg-amber-500' : ''}`}></div>
+                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition ${forceOffline ? 'translate-x-full' : ''}`}></div>
+                </div>
+                <span className="ml-2 text-sm hidden lg:inline text-slate-600 dark:text-slate-400">
+                    Test Hors Ligne
+                </span>
+            </label>
+
+            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
             <button 
                 onClick={onToggleTheme}
                 title="Changer le thème"
@@ -56,14 +84,6 @@ const Header: React.FC<HeaderProps> = ({ onOpenChangePassword, theme, onToggleTh
                     <MoonIcon className="w-6 h-6 text-slate-600 dark:text-slate-400" /> : 
                     <SunIcon className="w-6 h-6 text-slate-600 dark:text-slate-400" />
                 }
-            </button>
-            <button 
-                onClick={onOpenChangePassword} 
-                title="Changer le code d'accès"
-                className="p-2 rounded-full hover:bg-slate-100 active:bg-slate-200 dark:hover:bg-slate-700 dark:active:bg-slate-600 transition-colors"
-                aria-label="Changer le code d'accès"
-            >
-                <KeyIcon className="w-6 h-6 text-slate-600 dark:text-slate-400" />
             </button>
         </div>
       </div>

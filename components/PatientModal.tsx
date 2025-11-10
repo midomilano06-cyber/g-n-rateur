@@ -23,9 +23,12 @@ const XMarkIcon: React.FC<{ className?: string }> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
 );
-const UserGroupIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.962c.57-1.023.995-2.128 1.285-3.257m-11.23 4.242c.370-1.01.74-2.023 1.125-3.036m-1.125 3.036a9.094 9.094 0 013.741-.479 3 3 0 014.682-2.72M6.75 12.25c0-2.418 1.583-4.49 3.75-5.25m2.25 10.512c-2.167-.76-3.75-2.834-3.75-5.25m0 0V7.5A2.25 2.25 0 0111.25 5.25v1.5c0 .621.504 1.125 1.125 1.125p-3.75 0h.008v.008h-.008v-.008zm0 3.75c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125v-3.75z" />
+const UsersIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 010 7.75" />
     </svg>
 );
 
@@ -37,10 +40,21 @@ interface PatientModalProps {
     onDelete: (patientId: string) => void;
 }
 
+const initialFormData = {
+    name: '',
+    room: '',
+    gender: 'Masculin' as 'Masculin' | 'Féminin',
+    allergies: '',
+    diagnosis: '',
+    medicalHistory: '',
+    codeStatus: 'Réanimation complète' as Patient['codeStatus'],
+};
+
+
 const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, patients, onSave, onDelete }) => {
     const [view, setView] = useState<'list' | 'form'>('list');
     const [patientToEdit, setPatientToEdit] = useState<Patient | null>(null);
-    const [formData, setFormData] = useState({ name: '', room: '', gender: 'Masculin' as 'Masculin' | 'Féminin' });
+    const [formData, setFormData] = useState(initialFormData);
 
     useEffect(() => {
         if (isOpen) {
@@ -51,22 +65,34 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, patients, 
 
     const handleEditClick = (patient: Patient) => {
         setPatientToEdit(patient);
-        setFormData({ name: patient.name, room: patient.room || '', gender: patient.gender });
+        setFormData({ 
+            name: patient.name, 
+            room: patient.room || '', 
+            gender: patient.gender,
+            allergies: patient.allergies || '',
+            diagnosis: patient.diagnosis || '',
+            medicalHistory: patient.medicalHistory || '',
+            codeStatus: patient.codeStatus || 'Réanimation complète',
+        });
         setView('form');
     };
 
     const handleAddClick = () => {
         setPatientToEdit(null);
-        setFormData({ name: '', room: '', gender: 'Masculin' });
+        setFormData(initialFormData);
         setView('form');
     };
 
-    const handleFormChange = (field: 'name' | 'room', value: string) => {
+    const handleFormChange = (field: keyof typeof initialFormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     const handleGenderChange = (value: string) => {
         setFormData(prev => ({ ...prev, gender: value as 'Masculin' | 'Féminin' }));
+    }
+    
+    const handleCodeStatusChange = (value: string) => {
+        setFormData(prev => ({ ...prev, codeStatus: value as Patient['codeStatus'] }));
     }
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -86,6 +112,11 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, patients, 
         { value: 'Masculin', label: 'Masculin' },
         { value: 'Féminin', label: 'Féminin' },
     ];
+    
+    const codeStatusOptions = [
+        { value: 'Réanimation complète', label: 'Réanimation complète' },
+        { value: 'Ne pas réanimer (NPR)', label: 'Ne pas réanimer (NPR)' },
+    ];
 
     return (
         <div 
@@ -100,7 +131,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, patients, 
             >
                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
                      <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 flex items-center gap-3">
-                        <UserGroupIcon className="w-8 h-8 text-teal-600 dark:text-teal-500" />
+                        <UsersIcon className="w-8 h-8 text-teal-600 dark:text-teal-500" />
                         {view === 'list' ? 'Liste des Patients' : patientToEdit ? 'Modifier le Patient' : 'Ajouter un Patient'}
                     </h2>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Fermer">
@@ -115,18 +146,20 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, patients, 
                                 <ul className="divide-y divide-slate-200 dark:divide-slate-700">
                                     {patients.map(p => (
                                         <li key={p.id} className="p-3 flex justify-between items-center">
-                                            <div>
+                                            <div className="space-y-1">
                                                 <p className="font-medium text-slate-800 dark:text-slate-200">{p.name}</p>
                                                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                                                    {p.room ? `Chambre ${p.room} • ` : ''}{p.gender}
+                                                    {p.room ? `Ch. ${p.room} • ` : ''}{p.gender}
                                                 </p>
+                                                {p.diagnosis && <p className="text-xs text-slate-500 dark:text-slate-400">Dx: {p.diagnosis}</p>}
+                                                {p.allergies && <p className="text-xs font-semibold text-red-500 dark:text-red-400">Allergies: {p.allergies}</p>}
                                             </div>
                                             <div className="flex gap-2">
                                                 <button onClick={() => handleEditClick(p)} className="p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="Modifier">
                                                     <PencilIcon className="w-5 h-5 text-slate-600 dark:text-slate-300" />
                                                 </button>
                                                 <button onClick={() => onDelete(p.id)} className="p-2 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors" title="Supprimer">
-                                                    <TrashIcon className="w-5 h-5 text-red-600 dark:text-red-500" />
+                                                    <TrashIcon className="w-5 h-5 text-red-500" />
                                                 </button>
                                             </div>
                                         </li>
@@ -144,7 +177,7 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, patients, 
                 )}
 
                 {view === 'form' && (
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto p-1">
                         <div>
                             <label htmlFor="patient-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nom complet</label>
                             <input
@@ -174,6 +207,48 @@ const PatientModal: React.FC<PatientModalProps> = ({ isOpen, onClose, patients, 
                                 options={genderOptions}
                                 selectedValue={formData.gender}
                                 onChange={handleGenderChange}
+                             />
+                        </div>
+                        <div>
+                            <label htmlFor="patient-diagnosis" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Diagnostic principal</label>
+                            <textarea
+                                id="patient-diagnosis"
+                                value={formData.diagnosis}
+                                onChange={(e) => handleFormChange('diagnosis', e.target.value)}
+                                rows={2}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                                placeholder="Ex: Pneumonie, Insuffisance cardiaque, Post-op..."
+                            />
+                        </div>
+                         <div>
+                            <label htmlFor="patient-allergies" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Allergies</label>
+                            <textarea
+                                id="patient-allergies"
+                                value={formData.allergies}
+                                onChange={(e) => handleFormChange('allergies', e.target.value)}
+                                rows={2}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                                placeholder="Ex: Pénicilline, iode, arachides..."
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="patient-history" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Antécédents médicaux pertinents</label>
+                            <textarea
+                                id="patient-history"
+                                value={formData.medicalHistory}
+                                onChange={(e) => handleFormChange('medicalHistory', e.target.value)}
+                                rows={3}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                                placeholder="Ex: Diabète type 2, HTA, AVC en 2020..."
+                            />
+                        </div>
+                        <div>
+                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Statut de réanimation</label>
+                             <RadioGroup
+                                name="code-status"
+                                options={codeStatusOptions}
+                                selectedValue={formData.codeStatus || 'Réanimation complète'}
+                                onChange={handleCodeStatusChange}
                              />
                         </div>
                         <div className="flex justify-end gap-3 pt-4">

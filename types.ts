@@ -1,4 +1,3 @@
-
 export interface Option {
   value: string;
   label: string;
@@ -11,6 +10,10 @@ export interface Patient {
   name: string;
   room?: string;
   gender: 'Masculin' | 'Féminin';
+  allergies?: string;
+  diagnosis?: string;
+  medicalHistory?: string;
+  codeStatus?: 'Réanimation complète' | 'Ne pas réanimer (NPR)';
 }
 
 export interface PainState {
@@ -126,6 +129,7 @@ export interface LayoutSettings {
     letterSpacing: number;
     fontWeight: number;
     fontFamily: string;
+    isOfflineQueueEnabled?: boolean; // Added for offline queuing control
 }
 
 export interface SavedState {
@@ -133,7 +137,6 @@ export interface SavedState {
   aiNote: string;
   layoutSettings?: LayoutSettings;
   timestamp?: number;
-  editableFullShiftNotesContent?: string | null; // New field for edited full shift notes
 }
 
 export interface Scenario {
@@ -151,4 +154,6 @@ export interface GeneratedNoteRecord {
   patientName: string;
   noteContent: string;
   timestamp: number;
+  formState: FormState; // Store the state that generated the note
+  isOffline?: boolean;
 }
